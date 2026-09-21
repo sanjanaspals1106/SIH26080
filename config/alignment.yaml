@@ -11,6 +11,19 @@ forecast:
   atmosphere_steps_hours: [6, 12, 18, 24, 30, 36, 42, 48, 54, 60, 66, 72]  # Decision (7.2): 6..72 every 6 h
   download_area: { north: 40, west: 55, south: 0, east: 100 }              # Decision (7.2)
   grid_spacing_deg: 0.25           # Decision (7.2), if the ECDS form allows it (CK2)
+  # Download list, PRD 7.2 [Decision]. Key = internal variable name used by Stage 1 and later stages.
+  #   group: rain (tp steps), atmosphere (atmosphere steps) or static (step 0, one date only).
+  #   param / level_hpa: the TIGGE parameter and pressure level. cfgrib_name: short name in the GRIB file.
+  variables:
+    tp:   { group: rain,       levtype: sfc, param: tp,   cfgrib_name: tp }
+    msl:  { group: atmosphere, levtype: sfc, param: msl,  cfgrib_name: msl }
+    u850: { group: atmosphere, levtype: pl,  param: u,    cfgrib_name: u, level_hpa: 850 }
+    v850: { group: atmosphere, levtype: pl,  param: v,    cfgrib_name: v, level_hpa: 850 }
+    u200: { group: atmosphere, levtype: pl,  param: u,    cfgrib_name: u, level_hpa: 200 }
+    v200: { group: atmosphere, levtype: pl,  param: v,    cfgrib_name: v, level_hpa: 200 }
+    q850: { group: atmosphere, levtype: pl,  param: q,    cfgrib_name: q, level_hpa: 850 }
+    orog: { group: static,     levtype: sfc, param: orog, cfgrib_name: orog }
+    lsm:  { group: static,     levtype: sfc, param: lsm,  cfgrib_name: lsm }
 
 truth:
   source: IMD gridded daily rainfall   # Decision (D4)
@@ -23,7 +36,7 @@ truth:
   imd_day_end_utc: "03:00"             # Established (8.1); 08:30 IST = 03:00 UTC (test T6)
 
 time_alignment:
-  method: null                     # TODO(M1): set to C1 or C0 after check CK2; see PRD D6
+  method: C1                       # Decision (D6): TIGGE tp is 6-hourly. TODO(M1): confirm with CK2; C0 is NOT implemented
   alignment_offset_hours: { C1: 0, C0: 3 }   # Decision (8.3): stored on every row
   imd_stamp: end_date              # Decision (8.2) default; T4 lag test may change it to start_date
   c1_window_start_hour: "24*(k-1)+3"   # Decision (8.3), k = lead day
@@ -45,3 +58,52 @@ valid_cells:
 checks:
   max_rain_24h_mm: 1000                              # Assumption (9.2): rain >= 0 and below 1000 mm in 24 h
   tp_non_decreasing_min_share: 0.999                 # Decision (CK4 / T1)
+  tp_decrease_tolerance_mm: 0.001                    # Assumption: float rounding is not a decrease (T1)
+
+# Stage 2 (Golden Dataset). PRD 9.3, 9.7. Owner: M1.
+golden:
+  dir: golden                          # under DATA_DIR; raw data stays in raw/
+  static_date: null                    # TODO(M1): date (YYYY-MM-DD) of the one-date orog/lsm download (PRD 7.2)
+
+# Stage 3 (features and district products). PRD 9.4 to 9.6, 14. Owner: M1.
+features:
+  dir: features                        # under DATA_DIR; static geography, climatology, weights, feature and district tables
+  doy_period_days: 365.25              # Decision: one fixed annual period for doy_sin / doy_cos
+
+# Stage 1 (ingestion). PRD 7.2, 7.3, 9.1, 9.2. Owner: M1.
+# Secrets are NOT here. The ECDS key comes from CDSAPI_URL + CDSAPI_KEY (environment) or ~/.cdsapirc.
+ingestion:
+  data_dir_env: DATA_DIR                # environment variable / .env entry (see .env.example)
+  default_data_dir: ./data              # relative to the repository root
+  raw_dirs:                             # under the data dir. Raw files are never edited.
+    tigge: raw/tigge
+    imd: raw/imd
+    districts: raw/districts
+
+  tigge:
+    dataset: tigge-forecasts            # TODO(M1, CK2): confirm the dataset id and every key below with
+                                        # "Show API request code" on the ECDS TIGGE form, then edit here.
+    origin: ecmwf
+    time: "00:00"
+    data_format: grib
+    # Request key names. Only these lines change if the ECDS form uses different names (CK2).
+    request_keys:
+      origin: origin
+      type: type
+      time: time
+      date: date
+      step: step
+      variable: param
+      level: levelist
+      levtype: levtype
+      area: area
+      grid: grid
+      format: data_format
+    domain_tolerance_deg: 0.5           # file domain may be this much smaller than the requested area
+    request_timeout_s: 3600
+
+  imd:
+    var_type: rain                      # imdlib variable type
+    file_pattern: "rain/{year}.grd"     # yearwise imdlib layout, under raw_dirs.imd
+    dtype: float32                      # binary daily fields, (days, lat, lon), C order
+    download_timeout_s: 600

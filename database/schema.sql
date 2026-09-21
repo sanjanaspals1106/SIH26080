@@ -107,3 +107,14 @@ CREATE INDEX idx_district_forecasts_run_district ON district_forecasts (run_id, 
 CREATE INDEX idx_district_history_district_lead_season ON district_history (district_id, lead_day, season);
 CREATE INDEX idx_verification_results_type_lead_metric ON verification_results (forecast_type, lead_day, metric);
 CREATE INDEX idx_bias_table_district_lead_excluded ON bias_table (district_id, lead_day, season_excluded);
+
+-- Stage 4 additions (M1): integrity and lookup indexes for the M1 tables. The PRD DDL above is unchanged.
+-- district_forecasts and district_history point at nwp_runs, so a product cannot exist for an unknown run.
+ALTER TABLE district_forecasts ADD CONSTRAINT fk_district_forecasts_run FOREIGN KEY (run_id) REFERENCES nwp_runs (run_id);
+ALTER TABLE district_history   ADD CONSTRAINT fk_district_history_run   FOREIGN KEY (run_id) REFERENCES nwp_runs (run_id);
+CREATE INDEX idx_district_forecasts_imd_date ON district_forecasts (imd_date);
+CREATE INDEX idx_district_forecasts_district_date ON district_forecasts (district_id, imd_date);
+CREATE INDEX idx_district_history_run ON district_history (run_id);
+CREATE INDEX idx_cell_district_weights_district ON cell_district_weights (district_id);
+CREATE INDEX idx_nwp_runs_initialization_time ON nwp_runs (initialization_time);
+
