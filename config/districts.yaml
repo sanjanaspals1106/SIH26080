@@ -1,0 +1,18 @@
+# Owner: M1 (weights and aggregation), with M4 (checks). PRD section 14, D7, CK9 and Appendix B.
+# Status of each value is in the comment beside it.
+
+source:
+  name: DataMeet district boundaries   # Decision (D7)
+  census_basis: 2011                   # Decision (D7): districts created after 2011 are NOT included; the UI must say so
+  file: null                           # TODO(M1): path/name of the file chosen in CK9
+  licence: null                        # TODO(M1): read the licence page (CK9); also write it in docs/data-sources.md
+  n_districts: null                    # TODO(M1): count stated by the file (CK9; about 640 expected, D7)
+  file_year: null                      # TODO(M1): year stated by the file (CK9)
+
+weights:
+  projection_epsg: 6933                # Decision (14.2): equal-area projection for overlap areas
+  w_min: 0.05                          # Assumption (Appendix B): a cell is "main" for a district if weight >= w_min
+  renormalise_after_dropping_invalid_cells: true   # Decision (14.2): weights add up to 1 per district
+
+small_district:
+  n_effective_cells_max_exclusive: 4   # Assumption (Appendix B): is_small = n_effective_cells < 4

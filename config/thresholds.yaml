@@ -1,0 +1,27 @@
+# Owner: M4 (display and alert levels), shared with M3 (extrapolation limit). PRD sections 12.3, 13, F5, F6
+# and Appendix B. Status of each value is in the comment beside it.
+
+rain_thresholds_mm: [15.6, 64.5, 115.6]      # Decision (D8, Appendix B): per 24 h
+
+influence_flags:                             # Assumption (Appendix B, 11.5): display flags, not observed truth
+  orographic_favorable_min: 0.90
+  coastal_favorable_min: 0.90
+
+extrapolation:
+  training_rain_percentile: 99.9             # Assumption (Appendix B, 12.3): above this, extrapolation_flag = true
+
+calibration:
+  isotonic_min_events: 200                   # Assumption (Appendix B): fewer -> Platt scaling
+
+attention_levels:                            # Assumption (Appendix B, F5). Fixed display levels; NOT tuned (rule X4)
+  HIGH:  { heavy_prob_max_cell_min: 0.50, very_heavy_prob_max_cell_min: 0.20 }   # either condition
+  WATCH: { heavy_prob_max_cell_min: 0.20, corrected_mean_mm_min: 15.6 }          # either condition, and not HIGH
+  fallback_if_no_64_5_model:                 # Assumption (F5): uses highest cell P(>=15.6 mm)
+    HIGH_min: 0.80
+    WATCH_min: 0.50
+
+hotspots:                                    # Assumption (Appendix B, F6)
+  min_probability: 0.50
+  min_corrected_mean_mm: 15.6
+  threshold_mm: 64.5                         # Decision (F6)
+  threshold_mm_if_no_64_5_model: 15.6        # Decision (F6)

@@ -1,0 +1,71 @@
+# Owner: M2. PRD section 11, F3, F4 and Appendix B. Every value may be changed only using
+# development seasons, never the holdout. Status of each value is in the comment beside it.
+
+layer_a:
+  label_box: { lat_min: 18.0, lat_max: 28.0, lon_min: 68.0, lon_max: 88.0 }   # Decision (Appendix B)
+  label_base_period: { start_year: 1981, end_year: 2010 }                     # Decision (Appendix B)
+  climatology_window_days: 31        # Assumption (Appendix B)
+  active_z_min: 1.0                  # Verified (published rule): z > +1
+  break_z_max: -1.0                  # Verified (published rule): z < -1
+  min_run_days: 3                    # Verified (published rule): at least 3 days in a row
+  label_check:                       # Assumption (Appendix B): tolerances for the July-August statistics check
+    active_days_per_season: { target: 7, tolerance: 3 }
+    break_days_per_season: { target: 7, tolerance: 3 }
+    seasons_without_break_share: { target: 0.26, tolerance: 0.10 }
+
+  # Phase feature boxes A1-A6 (11.3). Assumption: all are starting values.
+  features:
+    A1: { name: peninsular_westerly_wind, variable: u850,  lat: [10.0, 20.0], lon: [65.0, 85.0] }
+    A2: { name: core_zone_vorticity,      variable: vort850, lat: [18.0, 28.0], lon: [68.0, 88.0] }
+    A3: { name: trough_position,          variable: msl,   zonal_mean_lon: [75.0, 90.0], search_lat: [15.0, 32.0] }
+    A4: { name: core_zone_pressure_anomaly, variable: msl, lat: [18.0, 28.0], lon: [68.0, 88.0] }   # minus training-season mean
+    A5: { name: moisture,                 variable: q850,  lat: [10.0, 25.0], lon: [70.0, 90.0] }
+    A6: { name: wind_shear,               variable: u850_minus_u200, lat: [5.0, 20.0], lon: [60.0, 100.0] }
+    season_position: [doy_sin, doy_cos]   # Decision (11.3)
+
+  phase_model:
+    algorithm: multinomial_logistic_regression_l2   # Decision (D10, 11.3)
+    penalty_C_grid: [0.01, 0.1, 1, 10]              # Decision (Appendix B)
+    penalty_C: null                                 # TODO(M2): chosen by lowest mean LOSO log-loss (Appendix B)
+  confidence_bands: { high_min: 0.50, medium_min: 0.20 }   # Assumption (Appendix B): High >= 0.50, Medium >= 0.20, else Low
+  out_of_range_flag:                                       # Assumption (Appendix B)
+    min_features_outside: 2
+    of_features: 6
+    percentile_range: [1, 99]
+
+layer_b:
+  domain: { lat_min: 5.0, lat_max: 30.0, lon_min: 60.0, lon_max: 100.0 }   # Decision (11.4)
+  detector:                                        # Assumption (Appendix B): start values, tuned in 11.4
+    zeta_min: 1.5e-5                               # s^-1
+    dp_min_hpa: 2
+    sigma_deg: 1.5
+    ring_km: [500, 800]
+    merge_km: 500
+  settings_label: untuned                          # Decision (11.4): M2 sets "tuned" after tuning; then FREEZE before LOSO runs
+  tuning_grid:                                     # Decision (Appendix B)
+    zeta_min: [1.0e-5, 1.5e-5, 2.0e-5]
+    dp_min_hpa: [1, 2, 3]
+    sigma_deg: [1.0, 1.5]
+  tuning_tie_break: larger_zeta_min                # Decision (11.4)
+  match_distance_km: { base: 300, per_extra_lead_day: 100 }   # Assumption (Appendix B): 300 km + 100 km x (lead - 1)
+  no_lps_distance_km: 3000                         # Decision (11.4)
+  lps_influence_scale_km: 600                      # Assumption (Appendix B)
+
+layer_c:
+  coast_decay_scale_km: 100                        # Assumption (Appendix B)
+  # The display flags (influence >= 0.90) are in thresholds.yaml.
+
+analogs:                                           # Decision (Appendix B, F3)
+  k: 5
+  min_separation_days: 5
+  same_lead_only: true
+  exclude_query_season: true
+  vector: [p_active, p_break, A1, A2, A3, A4, A5, A6, lps_present, lps_strength]   # Decision (F3): 10 numbers
+
+transitions:                                       # Assumption (Appendix B)
+  smoothing_days: 3
+  confirm_min_probability: 0.5
+  confirm_on_dates: 2
+  series_days_before: 6                            # Decision (F4): d1 - 6 .. d1 + 2
+  series_days_after: 2
+  lps_event_distance_km: 500

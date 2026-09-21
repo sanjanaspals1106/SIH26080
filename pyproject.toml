@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sih26080"
+version = "0.1.0"
+description = "SIH 2026 PS 26080: regime-aware AI post-processing of monsoon rainfall forecasts"
+requires-python = ">=3.11"
+# No runtime dependencies here on purpose. They live in environment.yml (PRD section 22.3).
+dependencies = []
+
+[tool.setuptools.packages.find]
+include = [
+  "data_pipeline*",
+  "regime_engine*",
+  "ml*",
+  "probability*",
+  "protocol*",
+  "verification*",
+  "backend*",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

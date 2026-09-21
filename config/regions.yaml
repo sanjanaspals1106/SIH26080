@@ -1,0 +1,14 @@
+# Owner: M1 (region_code), with M4. PRD section 14.3 [Decision].
+# Simple boxes, NOT official regions. A cell gets the FIRST region that fits, in this order.
+# The cell's centre is used.
+
+demo_highlight_region: WEST_COAST    # Decision (D1)
+
+# Rule keys: lat_gte / lat_lt / lon_gte / lon_lt (degrees). "default: true" = everything else.
+regions:
+  - { order: 1, region_code: HIMALAYA,       rule: { lat_gte: 28.0 } }
+  - { order: 2, region_code: NORTHEAST,      rule: { lon_gte: 88.5 } }
+  - { order: 3, region_code: WEST_COAST,     rule: { lon_lt: 77.0, lat_lt: 21.0 } }
+  - { order: 4, region_code: NORTHWEST_WEST, rule: { lon_lt: 77.0, lat_gte: 21.0 } }
+  - { order: 5, region_code: SOUTH_EAST,     rule: { lat_lt: 18.0 } }
+  - { order: 6, region_code: CENTRAL_EAST,   rule: { default: true } }

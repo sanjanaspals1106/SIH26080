@@ -1,0 +1,52 @@
+# Owner: M4 (with M3 for the models). PRD section 10, 12.2 and Appendix B.
+# COMMIT THIS FILE AND TAG THE CODE BEFORE THE FIRST HOLDOUT RUN (PRD 10.5).
+# Status of each value is in the comment beside it.
+
+random_seed: 2026                  # placeholder chosen at setup
+train_cell_stride: 1               # Decision (Appendix B, 10.11): 1 = all cells; 2 only if out of memory on 8 GB (then say so in the report)
+
+holdout_locked: false              # Decision (10.5): set by protocol/run_holdout.py
+
+seasons:                           # Decision (D2, 10.2)
+  target_first: 2016
+  target_last: 2025
+  wanted_minimum: 5
+  n_seasons: null                  # TODO(M1): N is fixed at gate G1 and written in docs/data-status.md
+  development_seasons: null        # TODO(M4): derive from N with the table in PRD 10.2 after G1
+  holdout_seasons: null            # TODO(M4): derive from N with the table in PRD 10.2 after G1
+  split_unit: season               # Decision (10.1)
+  development_scheme: leave_one_season_out   # Decision (D11, 10.1)
+
+settings_search:                   # Decision (Appendix B, 12.2)
+  n_trials: 20
+  validation_seasons: 3            # the newest 3 development seasons, one at a time
+  selection_metric: P1             # lowest mean RMSE for B2/B3; Brier score for probability models (13.3)
+  early_stopping: false
+  search_space:                    # Decision (12.2)
+    tweedie_variance_power: [1.2, 1.5, 1.8]
+    max_depth: [4, 5, 6, 7, 8]
+    min_child_weight: [50, 100, 200, 400]
+    learning_rate: [0.03, 0.05]
+    n_estimators: [200, 400, 800]
+    subsample: [0.7, 0.8]
+    colsample_bytree: [0.7, 0.8]
+    reg_lambda: [5, 10, 20]
+
+primary_metrics:                   # Decision (10.8): fixed BEFORE the holdout run; everything else is exploratory
+  - { id: P1, name: rmse_corrected_mean, description: "RMSE of the corrected mean against observed rain, all leads together" }
+  - { id: P2, name: ets, threshold_mm: 64.5, description: "ETS at 64.5 mm" }
+  - { id: P3, name: fss, threshold_mm: 64.5, neighbourhood_cells: 5, description: "FSS at 64.5 mm, 5x5-cell neighbourhood" }
+  - { id: P4, name: brier_skill_score, threshold_mm: 64.5, reference: training_season_climatology, description: "BSS for P(rain >= 64.5 mm) against training-season climatology" }
+  - { id: P5, name: q10_q90_coverage, target: 0.80, description: "Share of observations inside q10-q90 (a check, not a skill claim)" }
+
+min_events_primary: 30             # Assumption (Appendix B, 10.8)
+min_events_fallback_threshold_mm: 15.6   # Decision (10.8): if holdout has < min_events_primary events at 64.5 mm, use 15.6 mm in P2, P3, P4
+
+decision_rule:                     # Decision (10.8, 16.6)
+  claim: regime_information_helps  # B3 vs B2
+  interval: 0.95
+  must_be_significantly_better: [P1]
+  and_at_least_one_of: [P2, P3, P4]
+  no_primary_metric_significantly_worse: true
+
+systems: [B0, B1, B2, B3]          # Decision (10.9)

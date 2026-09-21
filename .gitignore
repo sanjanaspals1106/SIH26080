@@ -1,0 +1,31 @@
+# Data lives outside git (PRD 22.5). Anchored so it only matches the top-level data/ folder.
+/data/
+
+# Trained models (keep the folder itself)
+ml/models/*
+!ml/models/.gitkeep
+
+# Secrets. The ECDS key lives in ~/.cdsapirc and must never be committed.
+.env
+.cdsapirc
+
+# Weather / gridded data files
+*.grib
+*.grib2
+*.nc
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+build/
+
+# Node / frontend
+node_modules/
+dist/
+
+# OS
+.DS_Store
+
+# NOTE: protocol/holdout.lock is deliberately NOT ignored (PRD 10.5).

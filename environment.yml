@@ -1,0 +1,29 @@
+name: sih-rain
+channels: [conda-forge]
+dependencies:
+  - python=3.11
+  - numpy
+  - pandas
+  - xarray
+  - scipy
+  - scikit-learn
+  - xgboost>=2.0
+  - cfgrib
+  - eccodes
+  - pyarrow
+  - geopandas
+  - shapely
+  - pyproj
+  - matplotlib
+  - fastapi
+  - uvicorn
+  - pydantic>=2
+  - sqlalchemy>=2
+  - pytest
+  - pyyaml        # not in PRD 22.3; needed by tests/test_smoke.py
+  - pip
+  - pip:
+      - cdsapi
+      - imdlib
+      - "psycopg[binary]>=3"
+      - -e .      # not in PRD 22.3; run "conda env create" from the repo root
