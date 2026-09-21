@@ -23,7 +23,7 @@ truth:
   imd_day_end_utc: "03:00"             # Established (8.1); 08:30 IST = 03:00 UTC (test T6)
 
 time_alignment:
-  method: C1                       # Decision (D6): C1 if 6-hourly tp exists for every chosen season, else C0 for ALL seasons. M1 confirms at G1 (CK2). Never mixed.
+  method: null                     # TODO(M1): set to C1 or C0 after check CK2; see PRD D6
   alignment_offset_hours: { C1: 0, C0: 3 }   # Decision (8.3): stored on every row
   imd_stamp: end_date              # Decision (8.2) default; T4 lag test may change it to start_date
   c1_window_start_hour: "24*(k-1)+3"   # Decision (8.3), k = lead day
