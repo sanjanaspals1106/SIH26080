@@ -30,6 +30,11 @@ psql -U sih -h localhost -d sih_rain -f database/schema.sql
 `schema.sql` is not idempotent (plain `CREATE TABLE`). To start again, drop and recreate the
 database, then apply it again.
 
+## Loading data
+
+`scripts/load_m1.py` fills the M1 tables from the pipeline outputs (see [`backend/README.md`](../backend/README.md)).
+Run it after the schema exists; it can be repeated.
+
 ## Notes
 
 - `schema.sql` is copied verbatim from PRD section 20.2. The four `CREATE INDEX` lines at the end
@@ -37,3 +42,8 @@ database, then apply it again.
   index names are ours.
 - Changes to the schema are contract changes. Tell everyone who reads or writes the affected tables
   (see `CONTRIBUTING.md`).
+- **Stage 4 additions (M1).** The end of `schema.sql` adds foreign keys from `district_forecasts.run_id` and
+  `district_history.run_id` to `nwp_runs`, and indexes on `district_forecasts (imd_date)`,
+  `(district_id, imd_date)`, `district_history (run_id)`, `cell_district_weights (district_id)` and
+  `nwp_runs (initialization_time)`. The PRD DDL above them is unchanged. The foreign keys are a contract change:
+  every writer of these tables must create the `nwp_runs` row first.

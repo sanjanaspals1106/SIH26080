@@ -20,6 +20,7 @@ dependencies:
   - pydantic>=2
   - sqlalchemy>=2
   - pytest
+  - httpx        # not in PRD 22.3; FastAPI TestClient in tests/test_backend_*.py
   - pyyaml        # not in PRD 22.3; needed by tests/test_smoke.py
   - pip
   - pip:
