@@ -1,30 +1,31 @@
-# Owner: M4. PRD section 16 and Appendix B. Status of each value is in the comment beside it.
+# Verification Parameters (PRD §16 & Appendix B)
 
-forecast_types: [raw_nwp, quantile_mapping, global_ml, regime_aware_ml]   # Decision (16.1): B0..B3
-evaluation_sets: [development, holdout]                                   # Decision (16.1)
-quantiles: [0.1, 0.5, 0.9]                                                # Decision (13.7)
-
-coverage:                          # Assumption (Appendix B, 13.7)
+coverage:
   target: 0.80
-  tolerance: 0.10                  # 80% +/- 10 points
+  tolerance: 0.10
 
-group_min_events: 10               # Assumption (Appendix B, 16.5): fewer -> "Not enough events"
+grouping:
+  min_events: 10
 
-fss:                               # Assumption (Appendix B, 16.2)
-  neighbourhood_cells: [1, 3, 5, 9]
-  primary_neighbourhood_cells: 5
+spatial:
+  neighbourhoods: [1, 3, 5, 9]
+  primary_neighbourhood: 5
 
-bootstrap:                         # Assumption (Appendix B, 16.6)
-  block_days: 7
-  extra_block_days: [3, 14]
+bootstrap:
+  primary_block_days: 7
+  sensitivity_block_days: [3, 14]
   resamples: 2000
-  interval: 0.95
+  ci_level: 0.95
 
-season_consistency:
-  wilcoxon_min_seasons: 6          # Decision (16.6): with at least 6 seasons add a Wilcoxon signed-rank test
-
-groups:                            # Decision (16.5)
-  types: [all, lead_day, month, region_code, phase, lps_near, orographic_favorable, coastal_favorable, raw_rain_size]
-  months: [6, 7, 8, 9]
-  lps_near_distance_km: 500
-  raw_rain_size_bins_mm: [1.0, 15.6, 64.5]   # below 1, 1-15.6, 15.6-64.5, 64.5 and above
+reliability:
+  bins:
+    - [0.0, 0.1]
+    - [0.1, 0.2]
+    - [0.2, 0.3]
+    - [0.3, 0.4]
+    - [0.4, 0.5]
+    - [0.5, 0.6]
+    - [0.6, 0.7]
+    - [0.7, 0.8]
+    - [0.8, 0.9]
+    - [0.9, 1.0]
