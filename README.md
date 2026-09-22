@@ -29,9 +29,11 @@ From PRD section 22.2. macOS or Linux (Windows: WSL2 with Ubuntu). CPU only; 8 G
 
 ## Run
 
-Backend (from the repository root, with the conda environment active):
+Backend (from the repository root, with the conda environment active). It reads stored results only; the M1
+data is loaded by a script first. Details, endpoints and examples: [`backend/README.md`](backend/README.md).
 
 ```bash
+python scripts/load_m1.py                      # offline: pipeline outputs -> PostgreSQL (after database/schema.sql)
 uvicorn backend.app.main:app --port 8000
 # check: curl http://localhost:8000/api/v1/health
 ```
