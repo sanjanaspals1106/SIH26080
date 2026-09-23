@@ -1,22 +1,19 @@
-import { NavLink, Route, Routes } from 'react-router-dom'
+import { Route, Routes } from 'react-router-dom'
+import AppShell from './components/layout/AppShell'
+import ErrorBoundary from './components/common/ErrorBoundary'
 import Dashboard from './pages/Dashboard'
 import DistrictDetail from './pages/DistrictDetail'
 import RegimeTransitions from './pages/RegimeTransitions'
 import Verification from './pages/Verification'
 import ModelInfo from './pages/ModelInfo'
 
-// The five pages of PRD section 19.2. Each one is a placeholder that shows only its title.
+/**
+ * Main application routes wrapped in the AppShell (PRD Section 19.2)
+ */
 export default function App() {
   return (
-    <>
-      <nav className="nav">
-        <NavLink to="/" end>Dashboard</NavLink>
-        <NavLink to="/districts">District Detail</NavLink>
-        <NavLink to="/regime">Regime and Transitions</NavLink>
-        <NavLink to="/verification">Verification</NavLink>
-        <NavLink to="/model-info">Model Information</NavLink>
-      </nav>
-      <main>
+    <AppShell>
+      <ErrorBoundary name="Main Application View">
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/districts" element={<DistrictDetail />} />
@@ -25,7 +22,8 @@ export default function App() {
           <Route path="/verification" element={<Verification />} />
           <Route path="/model-info" element={<ModelInfo />} />
         </Routes>
-      </main>
-    </>
+      </ErrorBoundary>
+    </AppShell>
   )
 }
+
