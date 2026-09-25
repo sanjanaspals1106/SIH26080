@@ -6,6 +6,7 @@ import HistoricalAnalogsTab from '../components/district/HistoricalAnalogsTab'
 import DistrictRegimeTab from '../components/district/DistrictRegimeTab'
 import LoadingState from '../components/common/LoadingState'
 import ErrorState from '../components/common/ErrorState'
+import MockDataBanner from '../components/common/MockDataBanner'
 import {
   getRuns,
   getDistrictForecasts,
@@ -119,6 +120,10 @@ export default function DistrictDetail() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', height: '100%' }}>
+      <MockDataBanner
+        show={Boolean(regime?._mock || auditTrail?._mock || analogs?._mock)}
+      />
+
       {/* Header & District Quick Switcher */}
       <div
         style={{

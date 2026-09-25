@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import LoadingState from '../components/common/LoadingState'
+import MockDataBanner from '../components/common/MockDataBanner'
 import { getModelInfo, getMapMetadata } from '../api'
 import type { ModelInfoResponse, MapMetadataResponse } from '../types'
 
@@ -33,6 +34,8 @@ export default function ModelInfo() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', height: '100%' }}>
+      <MockDataBanner show={Boolean(modelInfo._mock)} />
+
       {/* Page Header */}
       <div
         style={{

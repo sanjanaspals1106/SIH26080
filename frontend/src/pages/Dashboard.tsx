@@ -8,6 +8,7 @@ import DistrictContextPanel from '../components/dashboard/DistrictContextPanel'
 import PriorityTable from '../components/dashboard/PriorityTable'
 import LoadingState from '../components/common/LoadingState'
 import ErrorState from '../components/common/ErrorState'
+import MockDataBanner from '../components/common/MockDataBanner'
 import {
   getRuns,
   getDistrictForecasts,
@@ -45,6 +46,7 @@ export default function Dashboard() {
   const [districtsGeoJson, setDistrictsGeoJson] = useState<GeoJsonFeatureCollection | null>(null)
   const [improvementSummary, setImprovementSummary] = useState<ImprovementSummaryResponse | null>(null)
   const [hotspots, setHotspots] = useState<Hotspot[]>([])
+  const [hasMockData, setHasMockData] = useState<boolean>(false)
 
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
@@ -91,6 +93,9 @@ export default function Dashboard() {
         setRawGridCells(rawGridRes.cells)
         setImprovementSummary(impRes)
         setHotspots(hotspotsRes.hotspots)
+        setHasMockData(Boolean(
+          districtsRes._mock || gridRes._mock || rawGridRes._mock || impRes._mock || hotspotsRes._mock
+        ))
 
         // Keep selected district updated with new lead/run values using functional update
         setSelectedDistrict((prev) => {
@@ -120,6 +125,8 @@ export default function Dashboard() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', height: '100%' }}>
+      <MockDataBanner show={hasMockData} />
+
       {/* Primary Dashboard Hero Header (Canva Reference Alignment) */}
       <div className="dashboard-hero-header" style={{ padding: '0.25rem 0.25rem 0 0.25rem' }}>
         <div

@@ -436,7 +436,7 @@ def apply_probability_calibrators(
     if not has_calibrators:
         if not allow_uncalibrated:
             raise ValueError(
-                "Final/holdout serving requires pre-fitted M4 calibrators. "
+                "Final/holdout serving requires pre-fitted M4 probability calibrators. "
                 "Set allow_uncalibrated=True only for explicit development use."
             )
 

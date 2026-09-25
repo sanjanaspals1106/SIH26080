@@ -25,7 +25,7 @@ from types import SimpleNamespace
 import geopandas as gpd
 from shapely.geometry import box
 from sqlalchemy import create_engine, text
-from stage3_world import make_golden, make_grid, make_tigge_static
+from tests.stage3_world import make_golden, make_grid, make_tigge_static
 
 from backend.app.config import get_settings, settings_from_config
 from backend.app.db.loader import load_all

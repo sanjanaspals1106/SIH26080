@@ -7,7 +7,9 @@ ml/models/*
 
 # Secrets. The ECDS key lives in ~/.cdsapirc and must never be committed.
 .env
+.env.*
 .cdsapirc
+!.env.example
 
 # Weather / gridded data files
 *.grib

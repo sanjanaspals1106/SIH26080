@@ -3,6 +3,7 @@ import ModelScorecard from '../components/verification/ModelScorecard'
 import MetricsComparisonChart from '../components/verification/MetricsComparisonChart'
 import FssChart from '../components/verification/FssChart'
 import ReliabilityCurveChart from '../components/verification/ReliabilityCurveChart'
+import MockDataBanner from '../components/common/MockDataBanner'
 
 export default function Verification() {
   const [selectedLead, setSelectedLead] = useState<number>(1)
@@ -12,6 +13,8 @@ export default function Verification() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', height: '100%' }}>
+      <MockDataBanner message="MOCK DATA — this page is not yet wired to the verification engine; every number below is a placeholder illustration, not a measured skill score (PRD rule H2)." />
+
       {/* Page Header */}
       <div
         style={{

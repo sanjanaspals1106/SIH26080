@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 import xarray as xr
-from stage3_world import C1, C2, N_SEA_COLS, make_static_grid
+from tests.stage3_world import C1, C2, N_SEA_COLS, make_static_grid
 
 import data_pipeline.features.static as static_module
 from data_pipeline.features import compute_static_geography, get_static_geography

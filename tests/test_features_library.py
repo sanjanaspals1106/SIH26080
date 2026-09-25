@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pyarrow as pa
 import pytest
-from stage3_world import (
+from tests.stage3_world import (
     GX,
     GY,
     RUNS,

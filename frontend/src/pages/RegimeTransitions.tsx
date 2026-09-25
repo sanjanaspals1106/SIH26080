@@ -5,6 +5,7 @@ import IndicatorsGrid from '../components/regime/IndicatorsGrid'
 import TransitionTimeline from '../components/regime/TransitionTimeline'
 import LoadingState from '../components/common/LoadingState'
 import ErrorState from '../components/common/ErrorState'
+import MockDataBanner from '../components/common/MockDataBanner'
 import { getRuns, getRegime, getRegimeTransitions } from '../api'
 import type { NwpRun, RegimeResponse, RegimeTransitionsResponse } from '../types'
 
@@ -69,6 +70,8 @@ export default function RegimeTransitions() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', height: '100%' }}>
+      <MockDataBanner show={Boolean(regime?._mock || transitions?._mock)} />
+
       {/* Page Header & Controls */}
       <div
         style={{

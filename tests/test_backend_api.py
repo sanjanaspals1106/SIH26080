@@ -4,7 +4,7 @@ import re
 
 import numpy as np
 import pytest
-from conftest import make_client
+from tests.conftest import make_client
 
 from data_pipeline.features import read_district_forecasts
 

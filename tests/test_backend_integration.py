@@ -9,7 +9,7 @@ import sys
 import numpy as np
 import pandas as pd
 import pytest
-from conftest import make_client
+from tests.conftest import make_client
 
 from backend.app.db.loader import load_all
 from data_pipeline.features import read_district_forecasts, read_district_history

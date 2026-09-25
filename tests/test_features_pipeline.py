@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from shapely.geometry import box
-from stage3_world import (
+from tests.stage3_world import (
     RUNS,
     make_golden,
     make_grid,
