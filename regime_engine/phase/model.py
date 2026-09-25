@@ -134,7 +134,9 @@ def select_best_c_loso(
                 model.fit(X_tr, y_tr)
                 probs = model.predict_proba(X_val)
                 # Compute log loss over classes
-                loss = log_loss(y_val, probs, labels=CLASSES)
+                # sklearn sorts `labels` alphabetically, so put the probability columns in that order too
+                order = np.argsort(CLASSES)
+                loss = log_loss(y_val, probs[:, order], labels=[CLASSES[i] for i in order])
                 fold_losses.append(loss)
             except Exception:
                 continue

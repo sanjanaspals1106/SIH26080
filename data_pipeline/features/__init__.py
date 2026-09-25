@@ -23,6 +23,7 @@ from data_pipeline.features.pipeline import (
     read_district_history,
     read_features,
 )
+from data_pipeline.features.regions import assign_region_codes, load_region_rules
 from data_pipeline.features.static import compute_static_geography, get_static_geography
 
 __all__ = [
@@ -32,6 +33,7 @@ __all__ = [
     "TABLE_COLUMNS",
     "TARGET_COLUMNS",
     "assert_no_holdout",
+    "assign_region_codes",
     "build_features",
     "build_stage3_season",
     "compute_climatology",
@@ -39,6 +41,7 @@ __all__ = [
     "feature_matrix",
     "get_climatology",
     "get_static_geography",
+    "load_region_rules",
     "read_district_forecasts",
     "read_district_history",
     "read_features",

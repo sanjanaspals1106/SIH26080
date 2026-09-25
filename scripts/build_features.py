@@ -25,7 +25,7 @@ from data_pipeline.features import (  # noqa: E402
     get_climatology,
     get_static_geography,
 )
-from data_pipeline.ingestion import IngestionError, load_config  # noqa: E402
+from data_pipeline.ingestion import IngestionError, load_config, read_static_from_grib  # noqa: E402
 
 
 def main() -> int:
@@ -33,7 +33,7 @@ def main() -> int:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     sub = parser.add_subparsers(dest="command", required=True)
-    sub.add_parser("static")
+    p_static = sub.add_parser("static")
     p_clim = sub.add_parser("climatology")
     p_clim.add_argument("seasons", type=int, nargs="+", help="training seasons")
     sub.add_parser("weights")
@@ -45,13 +45,24 @@ def main() -> int:
     p_season.add_argument(
         "--holdout", type=int, nargs="*", default=[], help="seasons the climatology must not use"
     )
+    for p_ in (p_static, p_season):
+        p_.add_argument(
+            "--static-grib",
+            help="a GRIB with orog and lsm (for example data/tigge/2025/single_06.grib) instead of golden.static_date",
+        )
+    p_season.add_argument(
+        "--skip-districts",
+        action="store_true",
+        help="write only the cell features (no district file needed yet)",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     config = load_config()
+    static = read_static_from_grib(args.static_grib) if getattr(args, "static_grib", None) else None
     try:
         if args.command == "static":
-            print(f"static geography: {len(get_static_geography(config))} cells")
+            print(f"static geography: {len(get_static_geography(config, static=static))} cells")
         elif args.command == "climatology":
             print(
                 f"climatology from seasons {args.seasons}: {len(get_climatology(args.seasons, config))} cells"
@@ -62,7 +73,14 @@ def main() -> int:
                 f"{len(s)} districts, {len(w)} district-cell weights; without valid cells: {s.attrs['districts_without_cells']}"
             )
         else:
-            out = build_stage3_season(args.year, args.train, config, holdout_seasons=args.holdout)
+            out = build_stage3_season(
+                args.year,
+                args.train,
+                config,
+                holdout_seasons=args.holdout,
+                skip_districts=args.skip_districts,
+                static=static,
+            )
             print(f"feature version {FEATURE_VERSION}")
             for kind, paths in out.items():
                 for path in paths:

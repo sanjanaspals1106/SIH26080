@@ -437,3 +437,77 @@ def validate_tigge(ds: xr.Dataset, group: str, config: IngestionConfig | None = 
         raise ValidationError(
             "TIGGE validation failed for group '" + group + "': " + "; ".join(problems) + "."
         )
+
+
+# --------------------------------------------------------------------------------------------
+# Reading a month from the hand-downloaded layout (`<tigge_dir>/<year>/...`)
+# --------------------------------------------------------------------------------------------
+#
+# The 2025 files were fetched with ad-hoc scripts, not `download_tigge_month`: one `tp_YYYYMM.grib` per month,
+# and per month one `single_MM.grib` (msl, plus lsm/orog at every step) and one `pressure_MM.grib` (u, v, q at
+# 850 and 200 hPa). `read_month` reads either layout into the same normalised objects, so Stage 2 does not care
+# which one a season was downloaded in.
+
+
+def legacy_month_paths(tigge_dir: Path | str, year: int, month: int) -> dict[str, Path]:
+    d = Path(tigge_dir) / str(year)
+    return {
+        "tp": d / f"tp_{year}{month:02d}.grib",
+        "single": d / f"single_{month:02d}.grib",
+        "pressure": d / f"pressure_{month:02d}.grib",
+    }
+
+
+def read_static_from_grib(path: Path | str) -> xr.Dataset:
+    """`orog` and `lsm` (dims `(lat, lon)`, ascending) from any GRIB that holds them, first date and step."""
+    datasets = _open_grib(Path(path))
+    ds = next((d for d in datasets if "orog" in d.data_vars and "lsm" in d.data_vars), None)
+    if ds is None:
+        raise ValidationError(f"{Path(path).name}: no dataset with both orog and lsm.")
+    out = ds[["orog", "lsm"]]
+    for dim in ("time", "step"):
+        if dim in out.dims:
+            out = out.isel({dim: 0})
+    out = out.reset_coords(drop=True).rename(latitude="lat", longitude="lon").sortby(["lat", "lon"])
+    return out
+
+
+def read_atmosphere_month(
+    year: int, month: int, config: IngestionConfig | None = None, tigge_dir: Path | str | None = None
+) -> xr.Dataset:
+    """Atmosphere group of one start month (`msl`, `u850`, `v850`, `u200`, `v200`, `q850`), validated (PRD 7.2).
+
+    `tigge_dir=None`: official layout under `<DATA_DIR>/raw/tigge`. `tigge_dir=<dir>`: hand-downloaded layout
+    `<dir>/<year>/{single_MM,pressure_MM}.grib` (see `legacy_month_paths`).
+    """
+    config = config or load_config()
+    if tigge_dir is None:
+        return read_tigge(tigge_raw_paths("atmosphere", f"{year}{month:02d}", config), "atmosphere", config)
+    paths = legacy_month_paths(tigge_dir, year, month)
+    sfc = read_tigge([paths["single"]], "atmosphere", config, validate=False)
+    sfc = sfc.sel(lead_hours=sfc["lead_hours"] >= min(config.tigge.steps_hours["atmosphere"]))  # drop msl step 0
+    pl = read_tigge([paths["pressure"]], "atmosphere", config, validate=False)
+    try:
+        atm = xr.merge([sfc, pl], join="exact", compat="override")
+    except ValueError as exc:
+        raise ValidationError(
+            f"{year}{month:02d}: single-level and pressure-level files do not share a grid ({exc})."
+        ) from exc
+    validate_tigge(atm, "atmosphere", config)
+    return atm
+
+
+def read_month(
+    year: int, month: int, config: IngestionConfig | None = None, tigge_dir: Path | str | None = None
+) -> tuple[xr.DataArray, xr.Dataset]:
+    """`(tp, atmosphere)` of one start month, normalised as by `read_tigge`, validated against PRD 7.2.
+
+    `tigge_dir=None`: the official layout under `<DATA_DIR>/raw/tigge` (`tigge_raw_paths`).
+    `tigge_dir=<dir>`: the hand-downloaded layout `<dir>/<year>/{tp_YYYYMM,single_MM,pressure_MM}.grib`.
+    """
+    config = config or load_config()
+    if tigge_dir is None:
+        tp = read_tigge(tigge_raw_paths("rain", f"{year}{month:02d}", config), "rain", config)["tp"]
+    else:
+        tp = read_tigge([legacy_month_paths(tigge_dir, year, month)["tp"]], "rain", config)["tp"]
+    return tp, read_atmosphere_month(year, month, config, tigge_dir)

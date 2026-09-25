@@ -27,6 +27,7 @@ from data_pipeline.districts.weights import get_district_weights
 from data_pipeline.features.climatology import assert_no_holdout, get_climatology
 from data_pipeline.features.io import read_month_tables, write_month_tables
 from data_pipeline.features.library import FEATURE_SCHEMA, KEY_COLUMNS, build_features
+from data_pipeline.features.regions import assign_region_codes
 from data_pipeline.features.static import get_static_geography
 from data_pipeline.ingestion.config import IngestionConfig, load_config
 from data_pipeline.ingestion.errors import MissingInputError
@@ -59,18 +60,22 @@ def build_stage3_season(
     static: xr.Dataset | None = None,
     districts: gpd.GeoDataFrame | None = None,
     grid: pd.DataFrame | None = None,
+    skip_districts: bool = False,
 ) -> dict[str, list[Path]]:
     """Features, district forecasts and district history for every Golden month of one season.
 
     `climatology_seasons`: the **training** seasons (required, no default). `holdout_seasons`: if given, the
     climatology is checked against them (PRD L4). `districts` fails clearly (`MissingInputError`) if no district
-    file is configured and none is passed.
+    file is configured and none is passed. `skip_districts=True` writes only the cell features (no district
+    weights, forecasts or history): for the model-training stage, before the district file (CK9) is in place.
     """
     config = config or load_config()
     files = golden_month_files(config, year)  # fail early, before any expensive step
-    weights, summary = get_district_weights(
-        districts, grid, config
-    )  # fails clearly if no district file is configured
+    weights = summary = None
+    if not skip_districts:
+        weights, summary = get_district_weights(
+            districts, grid, config
+        )  # fails clearly if no district file is configured
     static_geo = get_static_geography(config, static=static)
     clim = get_climatology(climatology_seasons, config)
     assert_no_holdout(clim, holdout_seasons)
@@ -82,6 +87,8 @@ def build_stage3_season(
         written["features"] += write_month_tables(
             feats, TABLES["features"], FEATURE_SCHEMA, KEY_COLUMNS, _run_month(feats["run_id"]), config
         )
+        if skip_districts:
+            continue
         fc = district_forecasts(golden, weights, summary, config)
         month = _run_month(fc["run_id"])
         written["forecasts"] += write_month_tables(
@@ -95,9 +102,16 @@ def build_stage3_season(
 
 
 def read_features(
-    config: IngestionConfig | None = None, seasons: Iterable[int] | None = None
+    config: IngestionConfig | None = None,
+    seasons: Iterable[int] | None = None,
+    with_region_code: bool = False,
 ) -> pd.DataFrame:
-    return read_month_tables(TABLES["features"], FEATURE_SCHEMA, config, seasons)
+    """The feature table. `with_region_code=True` adds `region_code` (PRD 14.3, `config/regions.yaml`), which the
+    M3 models need (B1 tables are per lead and region). It is derived from `latitude`/`longitude` at read time."""
+    df = read_month_tables(TABLES["features"], FEATURE_SCHEMA, config, seasons)
+    if with_region_code:
+        df["region_code"] = assign_region_codes(df["latitude"], df["longitude"])
+    return df
 
 
 def read_district_forecasts(

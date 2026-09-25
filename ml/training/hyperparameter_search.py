@@ -16,6 +16,8 @@ import json
 import numpy as np
 import pandas as pd
 
+from ml.fold_climatology import ClimProvider, memoize_provider, with_fold_climatology
+
 # Exact search space from PRD §12.2
 PARAM_GRID: Dict[str, List[Any]] = {
     "tweedie_variance_power": [1.2, 1.5, 1.8],
@@ -147,8 +149,12 @@ def evaluate_settings_search(
     model_type: str = "B2",
     n_validation_seasons: int = 3,
     train_cell_stride: int = 1,
+    clim_provider: Optional[ClimProvider] = None,
 ) -> Dict[str, Any]:
     """Evaluate candidate parameter combinations across 3 validation seasons (PRD §12.2).
+
+    `clim_provider` (see `ml/fold_climatology.py`): if given, every fold's `clim_mean`/`clim_p95` come from that
+    fold's training seasons only (PRD §10.4); if None they are used as stored.
 
     Rules:
     - Validation seasons = newest 3 development seasons.
@@ -194,6 +200,7 @@ def evaluate_settings_search(
         combinations = generate_shared_hyperparameter_configs(seed=seed, n_configs=20)
 
     all_results: List[Dict[str, Any]] = []
+    clim_provider = memoize_provider(clim_provider)
 
     for idx, config in enumerate(combinations):
         rmse_by_season: Dict[int, float] = {}
@@ -202,6 +209,7 @@ def evaluate_settings_search(
             # Leave-one-season-out within development seasons
             train_fold = dev_df[dev_df["season"] != val_season]
             val_fold = dev_df[dev_df["season"] == val_season]
+            train_fold, val_fold = with_fold_climatology(train_fold, val_fold, clim_provider)
 
             # Fit model on the other development seasons
             model = train_fn(

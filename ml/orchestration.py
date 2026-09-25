@@ -23,6 +23,7 @@ from ml.feature_contracts import (
     validate_feature_columns,
 )
 from ml.baselines.b0_raw import predict_b0
+from ml.fold_climatology import ClimProvider, memoize_provider, with_fold_climatology
 from ml.baselines.b1_quantile_mapping import QuantileMappingModel
 from ml.training.train_correction import (
     train_b2_model,
@@ -236,8 +237,12 @@ def run_development_oof_pipeline(
     range_params: Optional[Dict[str, Any]] = None,
     event_counts: Optional[Dict[float, int]] = None,
     train_cell_stride: int = 1,
+    clim_provider: Optional[ClimProvider] = None,
 ) -> pd.DataFrame:
     """Run Leave-One-Season-Out (LOSO) cross-validation on development seasons (PRD §10.3).
+
+    `clim_provider` (see `ml/fold_climatology.py`): if given, `clim_mean`/`clim_p95` are recomputed for every fold
+    from that fold's training seasons only (PRD §10.4); if None they are used as stored in `dev_df`.
 
     For each held-out development season h:
     - Train on all development seasons except h.
@@ -267,6 +272,7 @@ def run_development_oof_pipeline(
     cfg_range = range_params or {"n_estimators": 50, "max_depth": 4, "learning_rate": 0.05}
     counts = event_counts or {15.6: 100, 64.5: 50, 115.6: 35}
 
+    clim_provider = memoize_provider(clim_provider)
     oof_records = []
 
     for h in development_seasons:
@@ -278,6 +284,9 @@ def run_development_oof_pipeline(
 
         # Verify OOF isolation: h never in train_fold
         assert h not in train_fold["season"].values, f"Season {h} leaked into training fold!"
+
+        # Cell climatology from this fold's training seasons only (no-op without a provider)
+        train_fold, eval_fold = with_fold_climatology(train_fold, eval_fold, clim_provider)
 
         # 1. B0 Raw
         b0_raw = predict_b0(eval_fold)

@@ -43,7 +43,7 @@ from data_pipeline.ingestion.errors import (
     ValidationError,
 )
 from data_pipeline.ingestion.imd import imd_axes, read_imd
-from data_pipeline.ingestion.tigge import read_tigge, run_id, tigge_raw_paths
+from data_pipeline.ingestion.tigge import read_month, read_tigge, run_id, tigge_raw_paths
 
 log = logging.getLogger(__name__)
 
@@ -97,6 +97,23 @@ def align_static(static: xr.Dataset, config: IngestionConfig) -> xr.Dataset:
     lat, lon = imd_axes(config.imd)
     gm = build_grid_map(static["lat"].values, static["lon"].values, lat, lon)
     return regrid_dataset_bilinear(static[STATIC_VARS], gm)
+
+
+# ---- full-grid atmosphere (regime engine input) ------------------------------------------------
+
+
+def atmosphere_fullgrid_windows(atm: xr.Dataset, config: IngestionConfig | None = None) -> xr.Dataset:
+    """C1 atmosphere windows on the whole IMD grid, dims `(init_time, lead_day, lat, lon)`, float32.
+
+    The same time (`c1_atmosphere_windows`) and space (bilinear) steps as `golden_rows`, but nothing is cut to
+    the valid cells: the regime engine needs the ocean too (phase boxes reach 5N and 60E, the low-pressure
+    detector covers 5-30N, 60-100E).
+    """
+    config = config or load_config()
+    atm_w = c1_atmosphere_windows(atm[ATMOSPHERE_VARS], config.alignment)
+    lat, lon = imd_axes(config.imd)
+    gm = build_grid_map(atm["lat"].values, atm["lon"].values, lat, lon)
+    return xr.Dataset({v: regrid_bilinear(atm_w[v], gm) for v in ATMOSPHERE_VARS})
 
 
 # ---- rows ------------------------------------------------------------------------------------
@@ -285,16 +302,28 @@ def build_golden_season(
     grid: pd.DataFrame | None = None,
     static: xr.Dataset | None = None,
     imd: xr.Dataset | None = None,
+    tigge_dir: Path | str | None = None,
+    require_base_period: bool = False,
 ) -> list[Path]:
     """Stage 1 raw files of one season -> Golden Dataset files, one month at a time (bounded memory).
 
     Needs the valid-cell mask (`grid`, default: the saved one), the static fields, the IMD year and the
-    TIGGE month files under `<DATA_DIR>/raw/`. Anything missing raises with a message saying what to fetch.
+    TIGGE month files under `<DATA_DIR>/raw/` (or, with `tigge_dir`, in the hand-downloaded layout of
+    `read_month`). Anything missing raises with a message saying what to fetch.
+
+    `require_base_period=True` (used by `scripts/build_golden.py season`) refuses a valid-cell mask that was not
+    computed from the PRD base period, so that every season is built on the same mask.
     """
     config = config or load_config()
     cfg = config.alignment
     grid = grid if grid is not None else load_valid_cells(config)
     base = grid.attrs.get("base_years")
+    if require_base_period and str(base) != str([cfg.base_start_year, cfg.base_end_year]):
+        raise ValidationError(
+            f"The valid-cell mask was computed from base years {base}, not the PRD base period "
+            f"{cfg.base_start_year}-{cfg.base_end_year}. Run `python scripts/build_golden.py mask` first "
+            "(needs IMD for those years), or pass --allow-dev-mask for a development build."
+        )
     if base is not None and str(base) != str([cfg.base_start_year, cfg.base_end_year]):
         log.warning(
             "valid-cell mask was computed from base years %s, not the PRD base period %d-%d",
@@ -316,10 +345,51 @@ def build_golden_season(
     written: list[Path] = []
     for month in months if months is not None else cfg.season_months:
         tag = f"{year}{month:02d}"
-        tp = read_tigge(tigge_raw_paths("rain", tag, config), "rain", config)["tp"]
-        atm = read_tigge(tigge_raw_paths("atmosphere", tag, config), "atmosphere", config)
+        tp, atm = read_month(year, month, config, tigge_dir)
         df = golden_rows(tp, atm, static_grid, imd["rain"], grid, config)
         written += write_golden(df, config)
     if not written:
         raise IngestionError(f"No Golden Dataset files were written for {year}.")
     return written
+
+
+# ---- one mask for every season -----------------------------------------------------------------
+
+
+def check_mask_consistency(
+    config: IngestionConfig | None = None, seasons: Iterable[int] | None = None, strict_base_period: bool = True
+) -> dict:
+    """Do all built seasons use exactly the cells of the saved valid-cell mask, and is that mask the PRD one?
+
+    Reads only the `cell_id` column of every Golden file (cheap). Raises `ValidationError` listing every problem;
+    returns a small report if all is well. `strict_base_period=False` skips the base-period condition (a
+    development mask), the cell comparison always runs.
+    """
+    config = config or load_config()
+    cfg = config.alignment
+    grid = load_valid_cells(config)
+    mask_ids = set(grid.loc[grid["is_valid"], "cell_id"].tolist())
+    problems: list[str] = []
+    base = grid.attrs.get("base_years")
+    want = str([cfg.base_start_year, cfg.base_end_year])
+    if strict_base_period and str(base) != want:
+        problems.append(f"the mask was computed from base years {base}, not {want}")
+    root = cfg.golden_dir
+    dirs = [root / f"season_{s}" for s in seasons] if seasons is not None else sorted(root.glob("season_*"))
+    per_season: dict[str, int] = {}
+    for d in dirs:
+        files = sorted(d.glob("golden_*.parquet"))
+        if not files:
+            problems.append(f"{d.name}: no Golden files")
+            continue
+        for f in files:
+            ids = set(pq.read_table(f, columns=["cell_id"]).column("cell_id").unique().to_pylist())
+            if ids != mask_ids:
+                problems.append(
+                    f"{d.name}/{f.name}: {len(ids)} cells, mask has {len(mask_ids)} "
+                    f"({len(ids - mask_ids)} extra, {len(mask_ids - ids)} missing)"
+                )
+        per_season[d.name] = len(files)
+    if problems:
+        raise ValidationError("Valid-cell mask is not used consistently: " + "; ".join(problems) + ".")
+    return {"n_valid_cells": len(mask_ids), "base_years": base, "seasons": per_season}
