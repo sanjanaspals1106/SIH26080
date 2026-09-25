@@ -161,11 +161,15 @@ def test_a_features_are_one_row_per_run_and_lead(world):
     assert 0 < a_table["A3"].mean() and 15 <= a_table["A3"].min() and a_table["A3"].max() <= 32  # trough latitude
 
 
+A1_CURR = 6  # column of A1 (the lead itself) in the 20 phase-model inputs: 6 x prev, then curr
+
+
 class RecordingPhaseModel(PhaseModel):
-    """A PhaseModel that remembers how many rows it was fitted on (module level, so that it can be pickled)."""
+    """A PhaseModel that remembers what it was fitted on (module level, so that it can be pickled)."""
 
     def fit(self, X, y):
         self.n_train = len(X)
+        self.train_a1 = set(np.asarray(X)[:, A1_CURR].tolist())  # A1 values are distinct per (run, lead): a fingerprint
         return super().fit(X, y)
 
 
@@ -175,7 +179,9 @@ def run_loso(world, monkeypatch, **kw):
     orig = RegimeEngine.process_run_lead
 
     def spy(self, *a, **k):
-        calls.append((k["run_id"], k["lead_day"], k["regime_source"], id(self), self.phase_model.n_train))
+        # keep the engine object itself, not id(self): each fold's engine is freed before the next one is made,
+        # and CPython may give a freed object's address to the next one, so ids of dead objects are not identities
+        calls.append((k["run_id"], k["lead_day"], k["regime_source"], self, self.phase_model.n_train))
         return orig(self, *a, **k)
 
     monkeypatch.setattr(RegimeEngine, "process_run_lead", spy)
@@ -192,6 +198,7 @@ def test_process_run_lead_is_called_for_every_run_and_lead(world, monkeypatch):
 
 
 def test_development_seasons_are_out_of_fold_and_holdout_is_final(world, monkeypatch):
+    _, _, a_table, _, _, dev, hold = world
     result, calls, fits = run_loso(world, monkeypatch)
     by_season = {}
     for run, lead, source, eng, n_train in calls:
@@ -200,8 +207,9 @@ def test_development_seasons_are_out_of_fold_and_holdout_is_final(world, monkeyp
         assert {c[0] for c in by_season[s]} == {"oof"} and len(by_season[s]) == 1
     assert {c[0] for c in by_season[2024]} == {"final"}
     # an out-of-fold engine never shares its model with another season, and never saw its own season
-    engines = {next(iter(v))[1] for s, v in by_season.items() if s != 2024}
+    engines = {next(iter(v))[1] for s, v in by_season.items() if s != 2024}  # live objects, compared by identity
     assert len(engines) == 3
+    assert len({id(e.phase_model) for e in engines}) == 3  # and three separately fitted phase models
     n_oof = {next(iter(v))[2] for s, v in by_season.items() if s != 2024}
     n_final = next(iter(by_season[2024]))[2]
     assert len(n_oof) == 1 and n_final > next(iter(n_oof))  # 2 of 3 dev seasons vs all 3
@@ -211,6 +219,17 @@ def test_development_seasons_are_out_of_fold_and_holdout_is_final(world, monkeyp
     assert 2024 not in {s for f in result.folds for s in f["fit_on"]}  # the holdout is never fitted on
     assert set(result.domain.loc[result.domain["season"] == 2024, "regime_source"]) == {"final"}
     assert set(result.domain.loc[result.domain["season"] != 2024, "regime_source"]) == {"oof"}
+    # what each engine was really fitted on, read from the data itself and not from the bookkeeping above
+    a1 = {s: set(g["A1"].tolist()) for s, g in a_table.groupby("season")}
+    for s in (2021, 2022, 2023):
+        seen = next(iter(by_season[s]))[1].phase_model.train_a1
+        others = set().union(*(a1[o] for o in (2021, 2022, 2023) if o != s))
+        assert seen and seen <= others  # fitted only on rows of the other development seasons
+        assert not (seen & a1[s])  # not one row of its own season
+        assert seen & a1[2021 if s != 2021 else 2022]  # and really on the others
+    final_seen = next(iter(by_season[2024]))[1].phase_model.train_a1
+    assert final_seen <= set().union(a1[2021], a1[2022], a1[2023]) and not (final_seen & a1[2024])
+    assert all(final_seen & a1[s] for s in (2021, 2022, 2023))  # the final engine used every development season
 
 
 def test_the_14_features_are_produced_for_every_cell(world, monkeypatch):
