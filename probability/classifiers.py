@@ -395,7 +395,7 @@ class RainfallProbabilityModels:
                 p15_arr, p64_arr, p115_arr
             )
         else:
-            p15_corr, p64_corr, p115_corr = p15_raw, p64_raw, p115_raw
+            p15_corr, p64_corr, p115_corr = p_15_raw, p_64_raw, p_115_raw
 
         return pd.DataFrame(
             {
