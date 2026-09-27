@@ -241,13 +241,25 @@ def run(mode: str, out_dir: Path, run_holdout: bool, force_lock: bool, seed: int
                   f"config {result['best_config']}")
     (out_dir / "settings_search.json").write_text(json.dumps(best, indent=2, default=float))
 
-    print("leave-one-season-out OOF predictions ...")
-    oof = run_development_oof_pipeline(
-        dev_df, dev, b2_params=best["B2"]["best_config"], b3_params=best["B3"]["best_config"],
-        event_counts=counts, train_cell_stride=stride, clim_provider=clim,
-    )
-    oof = oof.merge(dev_df[["run_id", "lead_day", "cell_id"]], on=["run_id", "lead_day", "cell_id"], how="left")
-    print(f"OOF rows {len(oof):,}")
+    oof_cache = out_dir / "oof_predictions.parquet"
+    if oof_cache.is_file():
+        oof = pd.read_parquet(oof_cache)
+        print(f"leave-one-season-out OOF predictions: already done (found {oof_cache.name} from an earlier, "
+              f"interrupted run); reusing {len(oof):,} rows. Delete that file to redo it.")
+    else:
+        # about 8 model fits x 4 folds; run_development_oof_pipeline prints nothing until the whole thing is done,
+        # so a long silence here is expected, not a stall -- and if it dies partway, nothing is cached until it
+        # finishes, so a killed run here (OOM, Colab quota) currently means redoing the whole step.
+        print(f"leave-one-season-out OOF predictions (about 32 model fits across {len(dev)} folds, stride {stride}; "
+              "no progress is printed until this whole step finishes) ...")
+        t_oof = time.time()
+        oof = run_development_oof_pipeline(
+            dev_df, dev, b2_params=best["B2"]["best_config"], b3_params=best["B3"]["best_config"],
+            event_counts=counts, train_cell_stride=stride, clim_provider=clim,
+        )
+        oof = oof.merge(dev_df[["run_id", "lead_day", "cell_id"]], on=["run_id", "lead_day", "cell_id"], how="left")
+        oof.to_parquet(oof_cache, index=False)  # cached now: a later crash (calibration, final fit) does not redo this
+        print(f"OOF rows {len(oof):,} ({time.time() - t_oof:.0f}s), cached to {oof_cache.name}")
 
     print("fitting probability calibrators on the pooled OOF predictions ...")
     cals = fit_calibrators(oof, availability)
@@ -270,17 +282,25 @@ def run(mode: str, out_dir: Path, run_holdout: bool, force_lock: bool, seed: int
     for name, m in dev_results["correction"].items():
         print(f"  {name:20s} RMSE {m['rmse']:.3f} | ETS64.5 {m.get('ets_64.5')} | FSS64.5 {m.get('fss5_64.5')}")
 
-    print("fitting the final models on all development seasons ...")
-    final = fit_final_m3_models(
-        dev_df, dev, b2_params=best["B2"]["best_config"], b3_params=best["B3"]["best_config"],
-        event_counts=counts, output_dir=out_dir / "final", feature_set_version="v1", git_commit=commit,
-        dev_scores=dev_results, train_cell_stride=stride,
-    )
     import pickle
 
-    with open(out_dir / "final" / "calibrators.pkl", "wb") as f:
-        pickle.dump(cals, f)
-    print(f"final models saved to {out_dir / 'final'} ({time.time() - t0:.0f}s so far)")
+    from ml.orchestration import FinalM3Models
+
+    cal_path = out_dir / "final" / "calibrators.pkl"
+    if (out_dir / "final" / "b3" / "model.json").is_file():
+        final = FinalM3Models.load(out_dir / "final")
+        cals = pickle.loads(cal_path.read_bytes()) if cal_path.is_file() else cals
+        print(f"final models: already done (found {out_dir / 'final'} from an earlier, interrupted run); reusing "
+              "them. Delete that folder to redo it.")
+    else:
+        print("fitting the final models on all development seasons ...")
+        final = fit_final_m3_models(
+            dev_df, dev, b2_params=best["B2"]["best_config"], b3_params=best["B3"]["best_config"],
+            event_counts=counts, output_dir=out_dir / "final", feature_set_version="v1", git_commit=commit,
+            dev_scores=dev_results, train_cell_stride=stride,
+        )
+        cal_path.write_bytes(pickle.dumps(cals))
+        print(f"final models saved to {out_dir / 'final'} ({time.time() - t0:.0f}s so far)")
 
     if not run_holdout:
         print("holdout NOT run (pass --run-holdout once development results are accepted). STOP.")
