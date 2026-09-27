@@ -73,6 +73,28 @@ THRESHOLDS = (15.6, 64.5, 115.6)
 LOCK_PATH = Path(__file__).resolve().parent.parent / "holdout.lock"
 
 
+def search_with_progress(dev_df, dev, model_type, combos, val_seasons_n, stride, clim):
+    """`evaluate_settings_search`, one configuration at a time, printing as each one finishes.
+
+    The function itself prints nothing until the whole grid is done, which on the real merged data (millions of
+    rows per fold) can be many minutes of silence that looks identical to a stall. Calling it once per
+    configuration (a list of length 1 each time) is exactly equivalent to one call with the full list -- every
+    model fit and every number is the same -- it only adds visibility between configurations.
+    """
+    all_results = []
+    for i, combo in enumerate(combos):
+        t0 = time.time()
+        r = evaluate_settings_search(dev_df, dev, combinations=[combo], model_type=model_type,
+                                     n_validation_seasons=val_seasons_n, train_cell_stride=stride, clim_provider=clim)
+        entry = dict(r["all_results"][0], config_index=i)
+        all_results.append(entry)
+        print(f"  {model_type} config {i + 1}/{len(combos)}: mean RMSE {entry['mean_rmse']:.4f} "
+              f"({time.time() - t0:.0f}s) {combo}", flush=True)
+    best = min(all_results, key=lambda e: e["mean_rmse"])
+    return {"best_config": best["config"], "best_config_index": best["config_index"], "best_mean_rmse": best["mean_rmse"],
+            "validation_seasons": r["validation_seasons"], "all_results": all_results}
+
+
 def dev_event_counts(config, golden: pd.DataFrame, dev_seasons: list[int]) -> tuple[dict[float, int], object]:
     """Development-season event totals per threshold (PRD 10.7) and the model-availability decision (PRD 13.2).
 
@@ -192,10 +214,10 @@ def run(mode: str, out_dir: Path, run_holdout: bool, force_lock: bool, seed: int
     out_dir.mkdir(parents=True, exist_ok=True)
     best: dict[str, dict] = {}
     for model_type in ("B2", "B3"):
-        print(f"settings search: {model_type} ({n_configs} configs x {val_seasons_n} validation seasons, stride {stride}) ...")
+        print(f"settings search: {model_type} ({n_configs} configs x {val_seasons_n} validation seasons, stride {stride}) "
+              "-- prints as each configuration finishes, so a quiet minute is not a stall ...")
         combos = generate_shared_hyperparameter_configs(seed=seed, n_configs=n_configs)
-        result = evaluate_settings_search(dev_df, dev, combinations=combos, model_type=model_type,
-                                          n_validation_seasons=val_seasons_n, train_cell_stride=stride, clim_provider=clim)
+        result = search_with_progress(dev_df, dev, model_type, combos, val_seasons_n, stride, clim)
         best[model_type] = result
         print(f"  best {model_type}: index {result['best_config_index']}, mean RMSE {result['best_mean_rmse']:.3f}, "
               f"config {result['best_config']}")
