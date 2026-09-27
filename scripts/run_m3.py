@@ -183,9 +183,12 @@ def range_metrics(oof: pd.DataFrame) -> dict:
     return {r.lead_day: r.to_dict() for r in res} if isinstance(res, (list, tuple)) else res
 
 
-def run(mode: str, out_dir: Path, run_holdout: bool, force_lock: bool, seed: int) -> None:
+def run(mode: str, out_dir: Path, run_holdout: bool, force_lock: bool, seed: int,
+        n_configs: int | None = None, stride: int | None = None, val_seasons_n: int = 3,
+        skip_search: bool = False) -> None:
     t0 = time.time()
-    n_configs, stride, val_seasons_n = (2, 8, 3) if mode == "smoke" else (20, 1, 3)
+    d_n_configs, d_stride, _ = (2, 8, 3) if mode == "smoke" else (20, 1, 3)
+    n_configs, stride = n_configs or d_n_configs, stride or d_stride
     config = load_config()
     commit = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
 
@@ -213,14 +216,29 @@ def run(mode: str, out_dir: Path, run_holdout: bool, force_lock: bool, seed: int
 
     out_dir.mkdir(parents=True, exist_ok=True)
     best: dict[str, dict] = {}
+    out_dir.mkdir(parents=True, exist_ok=True)
     for model_type in ("B2", "B3"):
-        print(f"settings search: {model_type} ({n_configs} configs x {val_seasons_n} validation seasons, stride {stride}) "
-              "-- prints as each configuration finishes, so a quiet minute is not a stall ...")
-        combos = generate_shared_hyperparameter_configs(seed=seed, n_configs=n_configs)
-        result = search_with_progress(dev_df, dev, model_type, combos, val_seasons_n, stride, clim)
-        best[model_type] = result
-        print(f"  best {model_type}: index {result['best_config_index']}, mean RMSE {result['best_mean_rmse']:.3f}, "
-              f"config {result['best_config']}")
+        cache = out_dir / f"settings_search_{model_type}.json"
+        if skip_search:
+            # PRD 12.2's settings search skipped for time; the repo's own default XGBoost settings are used instead
+            # (ml.orchestration's b2_params=None / b3_params=None fallback), and the run is labelled UNTUNED
+            # throughout so this is never mistaken for a tuned result.
+            best[model_type] = {"best_config": {}, "tuning": "SKIPPED_UNTUNED_DEFAULTS", "note": "PRD 12.2 search not run"}
+            print(f"settings search: {model_type} SKIPPED (--skip-search); using the repo's default XGBoost settings, "
+                  "labelled UNTUNED")
+        elif cache.is_file():
+            best[model_type] = json.loads(cache.read_text())
+            print(f"settings search: {model_type} already done (found {cache.name} from an earlier, interrupted run); "
+                  f"reusing it -- best mean RMSE {best[model_type]['best_mean_rmse']:.3f}. Delete that file to redo it.")
+        else:
+            print(f"settings search: {model_type} ({n_configs} configs x {val_seasons_n} validation seasons, stride "
+                  f"{stride}) -- prints as each configuration finishes, so a quiet minute is not a stall ...")
+            combos = generate_shared_hyperparameter_configs(seed=seed, n_configs=n_configs)
+            result = search_with_progress(dev_df, dev, model_type, combos, val_seasons_n, stride, clim)
+            best[model_type] = result
+            cache.write_text(json.dumps(result, indent=2, default=float))  # saved now: a later crash does not lose it
+            print(f"  best {model_type}: index {result['best_config_index']}, mean RMSE {result['best_mean_rmse']:.3f}, "
+                  f"config {result['best_config']}")
     (out_dir / "settings_search.json").write_text(json.dumps(best, indent=2, default=float))
 
     print("leave-one-season-out OOF predictions ...")
@@ -313,10 +331,19 @@ def main() -> int:
     p.add_argument("--run-holdout", action="store_true", help="also predict and verify the holdout (PRD 10.5 lock)")
     p.add_argument("--force-lock", action="store_true", help="re-lock the holdout even if already locked (logged)")
     p.add_argument("--seed", type=int, default=None, help="default: config/protocol.yaml random_seed")
+    p.add_argument("--n-configs", type=int, default=None, help="override the settings-search grid size (default: 2 for smoke, 20 for full)")
+    p.add_argument("--stride", type=int, default=None, help="override train_cell_stride (default: 8 for smoke, 1 for full; PRD 10.11 allows 2 on memory/time limits)")
+    p.add_argument("--val-seasons", type=int, default=3, help="validation seasons for the settings search (PRD default 3)")
+    p.add_argument("--skip-search", action="store_true",
+                   help="skip the PRD 12.2 settings search entirely and use the repo's default XGBoost settings, "
+                        "labelled UNTUNED in every saved result. For when the search itself will not fit in the "
+                        "compute budget available (for example a Colab free-tier CPU quota); it still gives real, "
+                        "verified B0-B3/probability/range models and OOF metrics, just not tuned ones.")
     args = p.parse_args()
     from ml.training.hyperparameter_search import resolve_protocol_seed
 
-    run(args.mode, args.out_dir, args.run_holdout, args.force_lock, resolve_protocol_seed(args.seed))
+    run(args.mode, args.out_dir, args.run_holdout, args.force_lock, resolve_protocol_seed(args.seed),
+        n_configs=args.n_configs, stride=args.stride, val_seasons_n=args.val_seasons, skip_search=args.skip_search)
     return 0
 
 
