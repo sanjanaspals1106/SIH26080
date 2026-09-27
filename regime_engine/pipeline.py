@@ -616,23 +616,31 @@ def load_m3_frame(config: IngestionConfig, seasons: Sequence[int]) -> pd.DataFra
 
     Refuses to continue if the regime tables and the feature table do not describe exactly the same rows (the same
     valid-cell mask), so a stale table from another mask cannot slip in.
+
+    Builds and merges one season at a time (concatenating the small merged results at the end), instead of reading
+    every season's regime and feature table into memory before one merge over all of them: with 5 seasons of about
+    1.8M rows each, the single-merge form held several whole-run copies of the ~9M-row frame at once and could be
+    killed for memory on an ordinary Colab runtime. `regime_domain.parquet` is tiny (kilobytes) and is read once.
     """
     from data_pipeline.features.pipeline import read_features
 
     seasons = sorted(int(s) for s in seasons)
-    files = [regime_dir(config) / "regime_features" / f"season_{s}.parquet" for s in seasons]
-    absent = [f for f in files if not f.is_file()]
-    if absent:
-        raise MissingInputError(f"No regime features at {absent}. Run `python scripts/build_regime.py oof` first.")
-    regime = pd.concat([pd.read_parquet(f) for f in files], ignore_index=True)
     domain_path = regime_dir(config) / "regime_domain.parquet"
     if not domain_path.is_file():
         raise MissingInputError(f"No regime domain table at {domain_path}.")
     domain = pd.read_parquet(domain_path)
-    features = read_features(config, seasons=seasons, with_region_code=True)
-    if len(regime) != len(features):
-        raise ValidationError(
-            f"{len(regime):,} regime rows but {len(features):,} feature rows for seasons {seasons}: they were built "
-            "on different valid-cell masks or for different runs. Rebuild both from the same mask."
-        )
-    return merge_regime_features(features, regime, domain)
+
+    parts = []
+    for s in seasons:
+        regime_path = regime_dir(config) / "regime_features" / f"season_{s}.parquet"
+        if not regime_path.is_file():
+            raise MissingInputError(f"No regime features at {regime_path}. Run `python scripts/build_regime.py oof` first.")
+        regime = pd.read_parquet(regime_path)
+        features = read_features(config, seasons=[s], with_region_code=True)
+        if len(regime) != len(features):
+            raise ValidationError(
+                f"season {s}: {len(regime):,} regime rows but {len(features):,} feature rows: they were built on "
+                "different valid-cell masks or for different runs. Rebuild both from the same mask."
+            )
+        parts.append(merge_regime_features(features, regime, domain))
+    return pd.concat(parts, ignore_index=True)
