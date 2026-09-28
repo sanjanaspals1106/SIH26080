@@ -88,7 +88,7 @@ export default function BrandLogo({ size = 36, collapsed = false, className = ''
               marginTop: '1px',
             }}
           >
-            SIH26080
+            Regime-Aware Platform
           </div>
         </div>
       )}

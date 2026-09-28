@@ -141,15 +141,18 @@ def get_district_forecasts(
 def grid_layer(
     conn: Conn,
     golden_dir: Annotated[Path, Depends(get_golden_dir)],
+    settings: Annotated[Settings, Depends(get_settings)],
     run_id: RunIdRequired,
     lead_day: LeadRequired,
     variable: Annotated[str, Query(pattern="^(" + "|".join(grid_service.VARIABLES) + ")$")] = "raw",
     limit: Annotated[int, Query(ge=1, le=20000)] = 20000,
     offset: Offset = 0,
 ) -> GridLayer:
-    """One cell layer for a run and lead, read from Parquet. Only `raw` and `observed` exist at this stage."""
+    """One cell layer for a run and lead, read from Parquet. `raw`/`observed` are M1 products; `corrected`,
+    `q10`/`q50`/`q90`, `difference` and the 64.5/115.6mm probabilities come from the trained M3 models."""
     run = run_service.get_run_row(conn, run_id)
-    layer = grid_service.read_layer(golden_dir, run_id, lead_day, variable, limit, offset)
+    corrected_dir = settings.data_dir / "serving" / "corrected"
+    layer = grid_service.read_layer(golden_dir, corrected_dir, run_id, lead_day, variable, limit, offset)
     return GridLayer(
         total=layer["total"], limit=limit, offset=offset, run_id=run_id, lead_day=lead_day, imd_date=layer["imd_date"],
         evaluation_set=run.evaluation_set, variable=variable, unit="mm", cells=layer["cells"],

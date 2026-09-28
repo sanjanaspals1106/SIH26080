@@ -45,8 +45,8 @@ export interface ImprovementSummaryResponse extends ApiResponseMeta {
 
 export interface AuditTrailSteps {
   raw: {
-    district_mean_mm: number
-    wettest_cell_mm: number
+    district_mean_mm: number | null
+    wettest_cell_mm: number | null
   }
   regime: {
     phase: {
@@ -56,30 +56,34 @@ export interface AuditTrailSteps {
       confidence_band: 'low' | 'medium' | 'high'
     }
     nearest_lps: {
-      distance_km: number
-      bearing_deg: number
-      influence: number
-      settings: string
+      present: boolean
+      distance_km: number | null
+      bearing_deg: number | null
+      influence: number | null
+      settings: string | null
     }
-    orographic_influence: number
-    coastal_influence: number
-  }
+    orographic_influence: number | null
+    coastal_influence: number | null
+    regime_available: boolean
+    ood_flag: boolean
+    note: string | null
+  } | null
   history: {
     phase: string
     lps_near: boolean
     n_dates: number
-    median_diff_mm: number
-    q25_diff_mm: number
-    q75_diff_mm: number
-    note?: string
-  }
+    median_diff_mm: number | null
+    q25_diff_mm: number | null
+    q75_diff_mm: number | null
+    note?: string | null
+  } | null
   correction: {
-    district_mean_mm: number
-    wettest_cell_mm: number
+    district_mean_mm: number | null
+    wettest_cell_mm: number | null
   }
   corrected: {
-    district_mean_mm: number
-    wettest_cell_mm: number
+    district_mean_mm: number | null
+    wettest_cell_mm: number | null
   }
   confidence: {
     heavy_prob_max_cell: number | null
@@ -96,11 +100,17 @@ export interface AuditTrailSteps {
     feature_set_version: string
     alignment_method: AlignmentMethod
     fallback_used: boolean
+    product_type: string
+    fallback_reason: string | null
   }
 }
 
 export interface AuditTrailResponse extends ApiResponseMeta {
   forecast_id: string
+  lead_day: number
+  imd_date: string | null
+  district_id: string
+  district_name: string
   steps: AuditTrailSteps
   summary: string
 }

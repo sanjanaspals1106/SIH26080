@@ -206,5 +206,7 @@ def test_cache_is_recomputed_when_districts_or_valid_cells_change(cfg):
 def test_no_district_file_configured_fails_clearly(cfg):
     with pytest.raises(MissingInputError, match="No district file is configured"):
         get_district_weights(
-            None, grid_with_valid(cfg), cfg
+            None,
+            grid_with_valid(cfg),
+            dataclasses.replace(cfg, districts=dataclasses.replace(cfg.districts, file=None)),
         )  # falls back to the Stage 1 loader: no silent substitute

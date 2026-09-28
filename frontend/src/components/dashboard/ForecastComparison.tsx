@@ -1,26 +1,25 @@
-import ForecastMap from './ForecastMap'
-import type {
-  GridCellData,
-  GeoJsonFeatureCollection,
-  DistrictForecastSummary,
-} from '../../types'
+import ForecastMap, { type MapFlyTarget } from './ForecastMap'
+import type { GridCellData, GeoJsonFeatureCollection } from '../../types'
+import type { PinnedPlace } from '../../utils/geo'
 
 interface ForecastComparisonProps {
   rawCells: GridCellData[]
   correctedCells: GridCellData[]
   districtsGeoJson?: GeoJsonFeatureCollection | null
-  districtsList?: DistrictForecastSummary[]
   selectedDistrictId?: string | null
-  onSelectDistrict?: (district: DistrictForecastSummary) => void
+  onPick?: (lat: number, lon: number) => void
+  pin?: PinnedPlace | null
+  flyTo?: MapFlyTarget | null
 }
 
 export default function ForecastComparison({
   rawCells,
   correctedCells,
   districtsGeoJson,
-  districtsList = [],
   selectedDistrictId,
-  onSelectDistrict,
+  onPick,
+  pin,
+  flyTo,
 }: ForecastComparisonProps) {
   return (
     <div
@@ -65,9 +64,10 @@ export default function ForecastComparison({
             variable="raw"
             cells={rawCells}
             districtsGeoJson={districtsGeoJson}
-            districtsList={districtsList}
             selectedDistrictId={selectedDistrictId}
-            onSelectDistrict={onSelectDistrict}
+            onPick={onPick}
+            pin={pin}
+            flyTo={flyTo}
             titleBadge="RAW ECMWF"
           />
         </div>
@@ -105,9 +105,10 @@ export default function ForecastComparison({
             variable="corrected"
             cells={correctedCells}
             districtsGeoJson={districtsGeoJson}
-            districtsList={districtsList}
             selectedDistrictId={selectedDistrictId}
-            onSelectDistrict={onSelectDistrict}
+            onPick={onPick}
+            pin={pin}
+            flyTo={flyTo}
             titleBadge="AI-CORRECTED"
           />
         </div>

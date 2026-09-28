@@ -1,22 +1,29 @@
-import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  Legend,
-  CartesianGrid,
-} from 'recharts'
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts'
+import type { VerificationEvaluation } from '../../types'
+import { MODEL_COLORS } from './metricUtils'
 
-const FSS_DATA = [
-  { scale: '1x1 (28km)', Raw_NWP: 0.32, Regime_ML: 0.48, Useful_Skill_Line: 0.53 },
-  { scale: '3x3 (84km)', Raw_NWP: 0.44, Regime_ML: 0.68, Useful_Skill_Line: 0.53 },
-  { scale: '5x5 (140km)', Raw_NWP: 0.56, Regime_ML: 0.79, Useful_Skill_Line: 0.53 },
-  { scale: '9x9 (250km)', Raw_NWP: 0.69, Regime_ML: 0.89, Useful_Skill_Line: 0.53 },
+interface Props {
+  evaluation: VerificationEvaluation
+  threshold: string
+}
+
+const SKILLS: { name: string; key: 'pod' | 'ets' | 'csi' | 'fss5' }[] = [
+  { name: 'POD', key: 'pod' },
+  { name: 'ETS', key: 'ets' },
+  { name: 'CSI', key: 'csi' },
+  { name: 'FSS 5×5', key: 'fss5' },
 ]
 
-export default function FssChart() {
+export default function FssChart({ evaluation, threshold }: Props) {
+  const rows = SKILLS.filter((s) => evaluation.models.some((m) => m.thresholds[threshold]?.[s.key] != null)).map((s) => {
+    const row: Record<string, string | number | null> = { name: s.name }
+    for (const m of evaluation.models) {
+      const v = m.thresholds[threshold]?.[s.key]
+      row[m.key] = v == null ? null : Number(v.toFixed(3))
+    }
+    return row
+  })
+
   return (
     <div
       style={{
@@ -30,55 +37,23 @@ export default function FssChart() {
         height: '320px',
       }}
     >
-      <div>
-        <div style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-          FSS vs Spatial Scale (Fraction Skill Score, Threshold: 64.5mm)
-        </div>
-        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-          Assesses displacement tolerance. Crosses useful skill threshold (0.5 + f0/2) at 84 km.
-        </div>
+      <div style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+        Event skill at {threshold} mm (higher is better)
       </div>
-
       <div style={{ flex: 1, width: '100%', minHeight: '220px' }}>
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={FSS_DATA} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
-            <XAxis dataKey="scale" stroke="var(--text-muted)" fontSize={11} />
-            <YAxis domain={[0.2, 1.0]} stroke="var(--text-muted)" fontSize={11} />
+          <BarChart data={rows} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
+            <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={11} />
+            <YAxis stroke="var(--text-muted)" fontSize={11} domain={[0, 'auto']} />
             <Tooltip
-              contentStyle={{
-                backgroundColor: 'var(--bg-topbar)',
-                borderColor: 'var(--border-strong)',
-                borderRadius: '6px',
-                fontSize: '11px',
-              }}
+              contentStyle={{ backgroundColor: 'var(--bg-topbar)', borderColor: 'var(--border-strong)', borderRadius: '6px', fontSize: '11px' }}
             />
             <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '6px' }} />
-            <Line
-              type="monotone"
-              dataKey="Regime_ML"
-              name="B3: Regime-Aware ML"
-              stroke="#00b4d8"
-              strokeWidth={3}
-              dot={{ r: 4 }}
-            />
-            <Line
-              type="monotone"
-              dataKey="Raw_NWP"
-              name="B0: Raw NWP"
-              stroke="#94a3b8"
-              strokeWidth={2}
-              dot={{ r: 3 }}
-            />
-            <Line
-              type="monotone"
-              dataKey="Useful_Skill_Line"
-              name="Useful Skill (0.5 + f0/2)"
-              stroke="#f59e0b"
-              strokeDasharray="4 4"
-              strokeWidth={1.5}
-            />
-          </LineChart>
+            {evaluation.models.map((m) => (
+              <Bar key={m.key} dataKey={m.key} name={m.label} fill={MODEL_COLORS[m.forecast_type]} radius={[2, 2, 0, 0]} />
+            ))}
+          </BarChart>
         </ResponsiveContainer>
       </div>
     </div>

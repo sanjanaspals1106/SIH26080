@@ -4,15 +4,15 @@
 source:
   name: DataMeet district boundaries   # Decision (D7)
   census_basis: 2011                   # Decision (D7): districts created after 2011 are NOT included; the UI must say so
-  file: null                           # TODO(M1): file name chosen in CK9, placed under <DATA_DIR>/raw/districts/
-  columns:                             # TODO(M1, CK9): confirm these names against the real DataMeet file
+  file: 2011_Dist.shp                  # Decision (CK9): downloaded from github.com/datameet/maps (2026-09-28)
+  columns:                             # Verified (CK9): matches the real DataMeet file's own column names
     name: DISTRICT
     state: ST_NM
     source_id: censuscode              # optional; null if the file has no district code
-  assume_crs: null                     # only if the file has no CRS (for example a missing .prj): e.g. EPSG:4326
-  licence: null                        # TODO(M1): read the licence page (CK9); also write it in docs/data-sources.md
-  n_districts: null                    # TODO(M1): count stated by the file (CK9; about 640 expected, D7)
-  file_year: null                      # TODO(M1): year stated by the file (CK9)
+  assume_crs: null                     # the file has its own .prj (EPSG:4326); not needed
+  licence: "see github.com/datameet/maps"   # TODO(M1): confirm the exact licence text for docs/data-sources.md
+  n_districts: 641                     # Verified (CK9): counted from the file
+  file_year: 2011                      # Verified (CK9): 2011 census basis, matches D7
 
 outline:
   simplify_tolerance_deg: 0.005        # Assumption: outlines stored for the map are simplified (~500 m) to stay under 10 MB (PRD 19.3)

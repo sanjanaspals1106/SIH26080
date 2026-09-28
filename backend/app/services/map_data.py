@@ -9,10 +9,11 @@ from backend.app.db.tables import district_forecasts as f
 from backend.app.db.tables import districts as d
 from backend.app.db.tables import grid_cells as g
 from backend.app.db.tables import nwp_runs as r
-from backend.app.services.grid import AVAILABLE, VARIABLES
+from backend.app.services.grid import AVAILABLE, CORRECTED, VARIABLES
 from backend.app.services.runs import as_utc
 
-_LATER = "Produced by a later pipeline stage; not available yet."
+_LATER = "Not served in this release."
+SERVED = set(AVAILABLE) | set(CORRECTED) | {"difference"}  # what /forecasts/grid actually returns
 
 
 def metadata(conn: Connection, s: Settings) -> dict:
@@ -36,7 +37,7 @@ def metadata(conn: Connection, s: Settings) -> dict:
             "cell_id": "i_lat * n_lon + i_lon, from lat_min / lon_min",
         },
         "layers": [
-            {"variable": v, "available": v in AVAILABLE, "note": None if v in AVAILABLE else _LATER}
+            {"variable": v, "available": v in SERVED, "note": None if v in SERVED else _LATER}
             for v in VARIABLES
         ],
         "lead_days": s.lead_days,

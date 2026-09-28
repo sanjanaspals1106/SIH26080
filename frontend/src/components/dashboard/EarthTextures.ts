@@ -4,25 +4,6 @@ import earthBlueMarbleUrl from '../../assets/earth-blue-marble.jpg'
 import earthCloudsUrl from '../../assets/earth-clouds.png'
 import earthSpecularUrl from '../../assets/earth-specular.jpg'
 
-// Centroid coordinates for meteorological districts (PRD F5 & F6 reference)
-export const DISTRICT_COORDINATES: Record<string, { lat: number; lon: number; state: string; name: string }> = {
-  D001: { lat: 16.99, lon: 73.30, state: 'Maharashtra', name: 'Ratnagiri' },
-  D002: { lat: 16.03, lon: 73.82, state: 'Maharashtra', name: 'Sindhudurg' },
-  D003: { lat: 11.68, lon: 76.13, state: 'Kerala', name: 'Wayanad' },
-  D004: { lat: 13.92, lon: 75.56, state: 'Karnataka', name: 'Shimoga' },
-  D005: { lat: 21.60, lon: 86.80, state: 'Odisha', name: 'Balasore' },
-  D006: { lat: 23.83, lon: 78.73, state: 'Madhya Pradesh', name: 'Sagar' },
-  D007: { lat: 26.15, lon: 91.77, state: 'Assam', name: 'Kamrup Metro' },
-  D008: { lat: 21.14, lon: 79.08, state: 'Maharashtra', name: 'Nagpur' },
-  D009: { lat: 28.70, lon: 77.10, state: 'Delhi', name: 'New Delhi' },
-  D010: { lat: 13.08, lon: 80.27, state: 'Tamil Nadu', name: 'Chennai' },
-  D011: { lat: 12.97, lon: 77.59, state: 'Karnataka', name: 'Bengaluru' },
-  D012: { lat: 17.38, lon: 78.48, state: 'Telangana', name: 'Hyderabad' },
-  D013: { lat: 22.57, lon: 88.36, state: 'West Bengal', name: 'Kolkata' },
-  D014: { lat: 18.98, lon: 72.83, state: 'Maharashtra', name: 'Mumbai' },
-  D015: { lat: 23.02, lon: 72.57, state: 'Gujarat', name: 'Ahmedabad' },
-}
-
 /**
  * Loads the realistic high-resolution NASA Blue Marble satellite photograph texture
  */
@@ -87,30 +68,11 @@ export function createRainfallOverlayTexture(
   const toX = (lon: number) => ((lon + 180) / 360) * width
   const toY = (lat: number) => ((90 - lat) / 180) * height
 
-  // 1. Broad synoptic monsoon rain belt (Arabian Sea moisture plume -> Western Ghats -> Central Trough -> Bay of Bengal)
-  const plumeGrad = ctx.createRadialGradient(toX(74), toY(16), 20, toX(74), toY(16), 340)
-  plumeGrad.addColorStop(0, 'rgba(2, 132, 199, 0.42)') // Moderate
-  plumeGrad.addColorStop(0.6, 'rgba(96, 165, 250, 0.2)') // Light
-  plumeGrad.addColorStop(1, 'rgba(96, 165, 250, 0)')
-  ctx.fillStyle = plumeGrad
-  ctx.beginPath()
-  ctx.ellipse(toX(75), toY(17), 300, 160, -0.4, 0, Math.PI * 2)
-  ctx.fill()
-
-  // 2. Bay of Bengal Depression Rainfall Cell
-  const bobGrad = ctx.createRadialGradient(toX(87), toY(20), 20, toX(87), toY(20), 260)
-  bobGrad.addColorStop(0, 'rgba(234, 88, 12, 0.52)') // Heavy (64.5 - 115.6 mm)
-  bobGrad.addColorStop(0.45, 'rgba(2, 132, 199, 0.38)') // Moderate
-  bobGrad.addColorStop(1, 'rgba(96, 165, 250, 0)')
-  ctx.fillStyle = bobGrad
-  ctx.beginPath()
-  ctx.arc(toX(87), toY(20), 260, 0, Math.PI * 2)
-  ctx.fill()
-
-  // 3. District-specific analytical rainfall overlays
+  // District rainfall overlays, placed at each district's real centroid
   districts.forEach((d) => {
-    const coords = DISTRICT_COORDINATES[d.district_id]
-    if (!coords) return
+    if (d.centroid_lat == null || d.centroid_lon == null) return
+    if (d.raw_mean_mm == null || d.corrected_mean_mm == null) return
+    const coords = { lat: d.centroid_lat, lon: d.centroid_lon }
 
     const rain =
       selectedLayer === 'raw'
@@ -121,7 +83,7 @@ export function createRainfallOverlayTexture(
 
     const x = toX(coords.lon)
     const y = toY(coords.lat)
-    const radius = 55
+    const radius = 18 // 637 districts: small blobs that blend into a continuous field
 
     const grad = ctx.createRadialGradient(x, y, 0, x, y, radius)
     if (rain >= 115.6) {

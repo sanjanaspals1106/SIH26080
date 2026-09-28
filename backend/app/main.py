@@ -8,14 +8,19 @@ never builds features or weights, and has no endpoint that changes data: data is
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from backend.app.api.analog_routes import router as analog_router
+from backend.app.api.hotspot_routes import router as hotspot_router
+from backend.app.api.regime_routes import router as regime_router
 from backend.app.api.routes import VERSION, router
+from backend.app.api.summary_routes import router as summary_router
+from backend.app.api.verification_routes import router as verification_router
 from backend.app.errors import register_error_handlers
 
 API_PREFIX = "/api/v1"  # PRD 18.3
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="SIH26080 API", version=VERSION)
+    app = FastAPI(title="Bharat VarshAI API", version=VERSION)
     # The frontend (Vite dev server / static build) runs on a different origin than the API
     # (PRD 6: two separate parts on the same laptop). Without this, every browser request is
     # blocked by CORS even though curl/pytest never see the problem.
@@ -27,6 +32,11 @@ def create_app() -> FastAPI:
     )
     register_error_handlers(app)
     app.include_router(router, prefix=API_PREFIX)
+    app.include_router(regime_router, prefix=API_PREFIX)
+    app.include_router(hotspot_router, prefix=API_PREFIX)
+    app.include_router(summary_router, prefix=API_PREFIX)
+    app.include_router(verification_router, prefix=API_PREFIX)
+    app.include_router(analog_router, prefix=API_PREFIX)
     return app
 
 

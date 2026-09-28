@@ -1,4 +1,5 @@
 import type { DistrictForecastSummary } from '../../types'
+import { fmtMm } from '../../utils/format'
 
 interface ForecastOverviewTabProps {
   district: DistrictForecastSummary
@@ -71,7 +72,7 @@ export default function ForecastOverviewTab({
             Raw NWP Mean (ECMWF)
           </div>
           <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
-            {district.raw_mean_mm} <span style={{ fontSize: '0.8rem', fontWeight: 500 }}>mm/24h</span>
+            {fmtMm(district.raw_mean_mm)} <span style={{ fontSize: '0.8rem', fontWeight: 500 }}>mm/24h</span>
           </div>
           <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
             Baseline physics control model
@@ -91,7 +92,7 @@ export default function ForecastOverviewTab({
             AI-Corrected Mean (B3)
           </div>
           <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--accent-cyan)', fontFamily: 'var(--font-mono)' }}>
-            {district.corrected_mean_mm} <span style={{ fontSize: '0.8rem', fontWeight: 500 }}>mm/24h</span>
+            {fmtMm(district.corrected_mean_mm)} <span style={{ fontSize: '0.8rem', fontWeight: 500 }}>mm/24h</span>
           </div>
           <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
             Regime-aware post-processed prediction
@@ -136,7 +137,7 @@ export default function ForecastOverviewTab({
             Observed Rainfall (IMD Truth)
           </div>
           <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
-            {district.observed_mean_mm !== null ? `${district.observed_mean_mm} mm` : 'Pending / Replay'}
+            {district.observed_mean_mm !== null ? `${fmtMm(district.observed_mean_mm)} mm` : 'Pending / Replay'}
           </div>
           <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
             24h accumulation ending 08:30 IST
@@ -170,7 +171,7 @@ export default function ForecastOverviewTab({
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Wettest Cell Expected:</span>
             <span style={{ fontSize: '1.1rem', fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
-              {district.wettest_cell_mean_mm} mm
+              {fmtMm(district.wettest_cell_mean_mm)} mm
             </span>
           </div>
 
@@ -186,12 +187,12 @@ export default function ForecastOverviewTab({
               <span style={{ color: 'var(--text-muted)' }}>Uncertainty Range [q10 — q90]:</span>
               <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-sky)' }}>
                 {district.wettest_cell_q10_mm !== null
-                  ? `[${district.wettest_cell_q10_mm} mm — ${district.wettest_cell_q90_mm} mm]`
+                  ? `[${fmtMm(district.wettest_cell_q10_mm)} mm — ${fmtMm(district.wettest_cell_q90_mm)} mm]`
                   : 'Not available yet'}
               </strong>
             </div>
             <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-              PRD Rule H3: Model-estimated quantile spread, not a guaranteed physical interval.
+              Model-estimated quantile spread, not a guaranteed physical interval.
             </div>
           </div>
         </div>

@@ -89,13 +89,13 @@ export default function DistrictRegimeTab({
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ color: 'var(--text-muted)' }}>Distance to Center:</span>
               <strong style={{ fontFamily: 'var(--font-mono)' }}>
-                {regime?.nearest_lps.distance_km ? `${regime.nearest_lps.distance_km} km` : '—'}
+                {regime?.nearest_lps.distance_km != null ? `${regime.nearest_lps.distance_km} km` : '—'}
               </strong>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ color: 'var(--text-muted)' }}>Bearing Angle:</span>
               <strong style={{ fontFamily: 'var(--font-mono)' }}>
-                {regime?.nearest_lps.bearing_deg ? `${regime.nearest_lps.bearing_deg}° (SW)` : '—'}
+                {regime?.nearest_lps.bearing_deg != null ? `${regime.nearest_lps.bearing_deg}°` : '—'}
               </strong>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>

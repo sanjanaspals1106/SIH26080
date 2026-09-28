@@ -4,7 +4,6 @@ import type {
   PriorityTableResponse,
   GridResponse,
   ImprovementSummaryResponse,
-  AuditTrailResponse,
   HotspotsResponse,
   RegimeResponse,
   RegimeTransitionsResponse,
@@ -308,51 +307,6 @@ export const MOCK_IMPROVEMENT_SUMMARY: ImprovementSummaryResponse = {
   districts_corrected_closer: 452,
   districts_raw_closer: 188,
   note: 'One day only, not evidence.',
-}
-
-export const MOCK_AUDIT_TRAIL: AuditTrailResponse = {
-  _mock: true,
-  forecast_id: 'tigge_ecmwf_cf_2024071500_L1_D001',
-  evaluation_set: 'holdout',
-  steps: {
-    raw: { district_mean_mm: 18.0, wettest_cell_mm: 33.0 },
-    regime: {
-      phase: { active: 0.42, normal: 0.46, break: 0.12, confidence_band: 'low' },
-      nearest_lps: {
-        distance_km: 260,
-        bearing_deg: 235,
-        influence: 0.52,
-        settings: 'tuned',
-      },
-      orographic_influence: 0.88,
-      coastal_influence: 0.35,
-    },
-    history: {
-      phase: 'normal',
-      lps_near: true,
-      n_dates: 14,
-      median_diff_mm: 3.1,
-      q25_diff_mm: -2.0,
-      q75_diff_mm: 9.4,
-      note: 'few past cases',
-    },
-    correction: { district_mean_mm: 6.5, wettest_cell_mm: 8.0 },
-    corrected: { district_mean_mm: 24.5, wettest_cell_mm: 41.0 },
-    confidence: {
-      heavy_prob_max_cell: 0.58,
-      very_heavy_prob_max_cell: 0.22,
-      range_wettest_cell_mm: { q10: 12.0, q50: 33.0, q90: 78.0 },
-      measured_coverage_q10_q90: 0.78,
-    },
-    record: {
-      model_version: 'regime_xgb_v1',
-      feature_set_version: 'fs_v1',
-      alignment_method: 'C1',
-      fallback_used: false,
-    },
-  },
-  summary:
-    'The model raised the district mean from 18.0 to 24.5 mm (+6.5). Most likely phase: normal (confidence low).',
 }
 
 export const MOCK_REGIME: RegimeResponse = {

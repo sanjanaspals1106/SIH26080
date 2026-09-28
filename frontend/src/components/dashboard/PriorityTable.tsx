@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { DistrictForecastSummary, AttentionLevel } from '../../types'
+import { fmtMm } from '../../utils/format'
 
 interface PriorityTableProps {
   districts: DistrictForecastSummary[]
@@ -296,13 +297,13 @@ export default function PriorityTable({
                       </span>
                     </td>
                     <td style={{ padding: '0.4rem 0.6rem', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--accent-cyan)' }}>
-                      {d.corrected_mean_mm} mm
+                      {fmtMm(d.corrected_mean_mm)} mm
                     </td>
                     <td style={{ padding: '0.4rem 0.6rem', textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
-                      {d.raw_mean_mm} mm
+                      {fmtMm(d.raw_mean_mm)} mm
                     </td>
                     <td style={{ padding: '0.4rem 0.6rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>
-                      {d.wettest_cell_mean_mm} mm
+                      {fmtMm(d.wettest_cell_mean_mm)} mm
                     </td>
                     <td style={{ padding: '0.4rem 0.6rem', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
                       {d.heavy_prob_max_cell !== null ? `${Math.round(d.heavy_prob_max_cell * 100)}%` : '—'}

@@ -316,7 +316,8 @@ def test_map_metadata(client, m1_outputs):
     assert "after 2011" in body["districts"]["note"]
     layers = {lay["variable"]: lay for lay in body["layers"]}
     assert layers["raw"]["available"] and layers["observed"]["available"] and len(layers) == 14
-    assert not layers["corrected"]["available"] and "later pipeline stage" in layers["corrected"]["note"]
+    assert layers["corrected"]["available"] and layers["corrected"]["note"] is None  # served from data/serving/corrected
+    assert not layers["p_ge_15_6"]["available"] and layers["p_ge_15_6"]["note"]
 
 
 def test_map_districts_geojson(client):
@@ -379,5 +380,8 @@ def test_openapi_lists_only_get_endpoints(client):
     assert {p for p in paths if p.startswith(API)} == {
         f"{API}/health", f"{API}/runs", f"{API}/runs/{{run_id}}", f"{API}/forecasts/districts",
         f"{API}/forecasts/districts/{{district_id}}", f"{API}/forecasts/grid", f"{API}/map/metadata", f"{API}/map/districts",
+        f"{API}/regime", f"{API}/regime/transitions",
+        f"{API}/hotspots", f"{API}/forecasts/improvement-summary", f"{API}/districts/priority",
+        f"{API}/verification", f"{API}/forecasts/{{forecast_id}}/audit", f"{API}/model-info", f"{API}/analogs",
     }  # fmt: skip
     assert all(set(ops) == {"get"} for p, ops in paths.items() if p.startswith(API))

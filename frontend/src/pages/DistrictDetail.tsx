@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import ForecastOverviewTab from '../components/district/ForecastOverviewTab'
 import AuditTrailTab from '../components/district/AuditTrailTab'
 import HistoricalAnalogsTab from '../components/district/HistoricalAnalogsTab'
@@ -8,7 +8,7 @@ import LoadingState from '../components/common/LoadingState'
 import ErrorState from '../components/common/ErrorState'
 import MockDataBanner from '../components/common/MockDataBanner'
 import {
-  getRuns,
+  getAllRuns,
   getDistrictForecasts,
   getAuditTrail,
   getHistoricalAnalogs,
@@ -27,6 +27,7 @@ type DistrictTab = 'forecast' | 'audit' | 'analogs' | 'regime'
 export default function DistrictDetail() {
   const { districtId } = useParams<{ districtId?: string }>()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams() // ?run=&lead= carry the dashboard's selection here
 
   const [runs, setRuns] = useState<NwpRun[]>([])
   const [selectedRunId, setSelectedRunId] = useState<string>('')
@@ -48,11 +49,14 @@ export default function DistrictDetail() {
     async function init() {
       try {
         setLoading(true)
-        const runsRes = await getRuns()
-        setRuns(runsRes.runs)
-        if (runsRes.runs.length > 0) {
-          setSelectedRunId(runsRes.runs[0].run_id)
+        const allRuns = await getAllRuns()
+        setRuns(allRuns)
+        if (allRuns.length > 0) {
+          const wanted = searchParams.get('run')
+          setSelectedRunId((allRuns.find((r) => r.run_id === wanted) ?? allRuns[0]).run_id)
         }
+        const lead = Number(searchParams.get('lead'))
+        if (lead >= 1 && lead <= 3) setSelectedLead(lead)
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : 'Failed to load runs')
       } finally {
@@ -88,7 +92,7 @@ export default function DistrictDetail() {
         if (current) {
           const forecastId = `${selectedRunId}_L${selectedLead}_${current.district_id}`
           const [auditRes, analogsRes] = await Promise.all([
-            getAuditTrail(forecastId),
+            getAuditTrail(forecastId).catch(() => null), // a missing audit must not block the analogs
             getHistoricalAnalogs({
               run_id: selectedRunId,
               lead_day: selectedLead,
@@ -189,7 +193,7 @@ export default function DistrictDetail() {
           >
             {runs.map((r) => (
               <option key={r.run_id} value={r.run_id}>
-                {r.initialization_time.split('T')[0]} ({r.evaluation_set.toUpperCase()})
+                {r.initialization_time.split('T')[0]} ({(r.evaluation_set ?? "unknown").toUpperCase()})
               </option>
             ))}
           </select>

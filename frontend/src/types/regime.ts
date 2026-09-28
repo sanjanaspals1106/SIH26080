@@ -81,18 +81,35 @@ export interface AnalogItem {
   season: number
   distance: number
   distance_percentile: number
-  observed_mean_mm: number
-  observed_wettest_cell_mm: number
-  raw_mean_mm: number
-  corrected_mean_mm: number
-  error_observed_minus_raw_mm: number
+  observed_mean_mm: number | null
+  observed_wettest_cell_mm: number | null
+  raw_mean_mm: number | null
+  corrected_mean_mm?: number // not served: development-season corrected values are in-sample
+  error_observed_minus_raw_mm: number | null
+  // Reduced similarity vector the analog was matched on (phase + low-pressure system)
+  analog_run_id?: string
+  p_active?: number | null
+  p_break?: number | null
+  lps_present?: boolean
+  lps_strength?: number | null
+}
+
+export interface AnalogQuery {
+  imd_date: string
+  p_active: number | null
+  p_break: number | null
+  lps_present: boolean
+  lps_strength: number | null
 }
 
 export interface AnalogsResponse extends ApiResponseMeta {
   lead_day: number
   district_id: string
   analogs: AnalogItem[]
-  median_error_observed_minus_raw_mm: number
+  median_error_observed_minus_raw_mm: number | null
   n_analogs: number
   note: string // '5 cases only'
+  method?: string
+  query?: AnalogQuery
+  library_size?: number
 }

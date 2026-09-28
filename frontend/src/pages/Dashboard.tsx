@@ -1,16 +1,19 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import GlobeHero from '../components/dashboard/GlobeHero'
 import ForecastControls from '../components/dashboard/ForecastControls'
 import ForecastComparison from '../components/dashboard/ForecastComparison'
 import ForecastMap from '../components/dashboard/ForecastMap'
 import ImprovementSummary from '../components/dashboard/ImprovementSummary'
-import DistrictContextPanel from '../components/dashboard/DistrictContextPanel'
+import DistrictContextPanel, { type CellValues } from '../components/dashboard/DistrictContextPanel'
+import DistrictSearch from '../components/dashboard/DistrictSearch'
+import type { MapFlyTarget } from '../components/dashboard/ForecastMap'
 import PriorityTable from '../components/dashboard/PriorityTable'
 import LoadingState from '../components/common/LoadingState'
 import ErrorState from '../components/common/ErrorState'
 import MockDataBanner from '../components/common/MockDataBanner'
 import {
-  getRuns,
+  getAllRuns,
+  getRegimeStrict,
   getDistrictForecasts,
   getGridForecast,
   getImprovementSummary,
@@ -26,8 +29,30 @@ import type {
   GeoJsonFeatureCollection,
   Hotspot,
 } from '../types'
+import {
+  buildCellIndex,
+  buildDistrictIndex,
+  cellAt,
+  findDistrictAt,
+  type PinnedPlace,
+} from '../utils/geo'
 
 import ErrorBoundary from '../components/common/ErrorBoundary'
+
+const CELL_VARIABLES: GridVariable[] = ['raw', 'corrected', 'observed', 'q10', 'q50', 'q90', 'p_ge_64_5', 'p_ge_115_6']
+type CellLayers = Partial<Record<GridVariable, Map<number, number | null> | null>>
+
+const runDate = (r: NwpRun) => r.initialization_time.split('T')[0]
+
+/** Start on a mid-monsoon day of the first season rather than the 1 June spin-up. */
+function defaultRun(runs: NwpRun[]): NwpRun | undefined {
+  const sorted = [...runs].sort((a, b) => a.initialization_time.localeCompare(b.initialization_time))
+  if (sorted.length === 0) return undefined
+  const season = sorted[0].season
+  return sorted.find((r) => r.season === season && runDate(r).slice(5) === '07-15') ?? sorted[0]
+}
+
+const PHASE_LABEL: Record<string, string> = { active: 'Active monsoon', normal: 'Normal', break: 'Break monsoon' }
 
 export default function Dashboard() {
   const [runs, setRuns] = useState<NwpRun[]>([])
@@ -47,6 +72,14 @@ export default function Dashboard() {
   const [improvementSummary, setImprovementSummary] = useState<ImprovementSummaryResponse | null>(null)
   const [hotspots, setHotspots] = useState<Hotspot[]>([])
   const [hasMockData, setHasMockData] = useState<boolean>(false)
+  const [pin, setPin] = useState<PinnedPlace | null>(null)
+  const [cellValues, setCellValues] = useState<CellValues | null>(null)
+  const [flyTarget, setFlyTarget] = useState<MapFlyTarget | null>(null)
+  const [regimeLabel, setRegimeLabel] = useState<string | null>(null)
+  const [dataError, setDataError] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState<number>(0)
+  const flyKey = useRef(0)
+  const cellLayerCache = useRef<Map<string, CellLayers>>(new Map())
 
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
@@ -56,14 +89,13 @@ export default function Dashboard() {
     async function init() {
       try {
         setLoading(true)
-        const [runsRes, geoJsonRes] = await Promise.all([
-          getRuns(),
+        const [allRuns, geoJsonRes] = await Promise.all([
+          getAllRuns(),
           getDistrictGeoJSON(),
         ])
-        setRuns(runsRes.runs)
-        if (runsRes.runs.length > 0) {
-          setSelectedRunId(runsRes.runs[0].run_id)
-        }
+        setRuns(allRuns)
+        const start = defaultRun(allRuns)
+        if (start) setSelectedRunId(start.run_id)
         setDistrictsGeoJson(geoJsonRes)
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : 'Failed to initialize dashboard')
@@ -77,6 +109,7 @@ export default function Dashboard() {
   // Load forecasts whenever selectedRunId, selectedLead, or selectedLayer changes
   useEffect(() => {
     if (!selectedRunId) return
+    let cancelled = false
 
     async function loadForecastData() {
       try {
@@ -87,33 +120,140 @@ export default function Dashboard() {
           getImprovementSummary({ run_id: selectedRunId, lead_day: selectedLead }),
           getHotspots({ run_id: selectedRunId, lead_day: selectedLead }),
         ])
+        if (cancelled) return
 
+        setDataError(null)
         setDistricts(districtsRes.districts)
         setGridCells(gridRes.cells)
         setRawGridCells(rawGridRes.cells)
         setImprovementSummary(impRes)
         setHotspots(hotspotsRes.hotspots)
-        setHasMockData(Boolean(
-          districtsRes._mock || gridRes._mock || rawGridRes._mock || impRes._mock || hotspotsRes._mock
-        ))
+        setHasMockData(Boolean(impRes._mock || hotspotsRes._mock))
 
-        // Keep selected district updated with new lead/run values using functional update
-        setSelectedDistrict((prev) => {
-          if (prev) {
-            const updated = districtsRes.districts.find(
-              (d) => d.district_id === prev.district_id
-            )
-            return updated || districtsRes.districts[0] || null
-          }
-          return districtsRes.districts[0] || null
-        })
+        // Keep the selected district in step with the new run / lead (matched by id, never defaulted to another)
+        setSelectedDistrict((prev) =>
+          prev ? districtsRes.districts.find((d) => d.district_id === prev.district_id) ?? null : null
+        )
       } catch (err: unknown) {
+        if (cancelled) return
         console.error('Error fetching forecast data:', err)
+        setDataError(
+          'Forecast data for this run and lead day could not be loaded. Choose another date or retry.'
+        )
       }
     }
 
     loadForecastData()
-  }, [selectedRunId, selectedLead, selectedLayer])
+    return () => {
+      cancelled = true
+    }
+  }, [selectedRunId, selectedLead, selectedLayer, reloadKey])
+
+  // The real monsoon phase for the selected run and lead (badge is hidden when unavailable)
+  useEffect(() => {
+    if (!selectedRunId) return
+    let cancelled = false
+    getRegimeStrict({ run_id: selectedRunId, lead_day: selectedLead })
+      .then((r) => {
+        if (cancelled) return
+        if (!r.regime_available || !r.phase) {
+          setRegimeLabel(null)
+          return
+        }
+        const p = r.phase[r.phase.dominant_phase]
+        setRegimeLabel(`${PHASE_LABEL[r.phase.dominant_phase] ?? r.phase.dominant_phase} · ${Math.round(p * 100)}%`)
+      })
+      .catch(() => {
+        if (!cancelled) setRegimeLabel(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [selectedRunId, selectedLead])
+
+  // Lookup structures for resolving a clicked lat/lon to a district and a 0.25° cell
+  const districtIndex = useMemo(() => buildDistrictIndex(districtsGeoJson), [districtsGeoJson])
+  const cellIndex = useMemo(() => buildCellIndex(rawGridCells.length ? rawGridCells : gridCells), [rawGridCells, gridCells])
+  const districtProps = useMemo(() => {
+    const m = new Map<string, { name: string; state: string }>()
+    districtsGeoJson?.features.forEach((f) =>
+      m.set(f.properties.district_id, { name: f.properties.name, state: f.properties.state })
+    )
+    return m
+  }, [districtsGeoJson])
+
+  const selectDistrict = useCallback((d: DistrictForecastSummary) => {
+    setSelectedDistrict(d)
+    setPin(null)
+    if (d.centroid_lat != null && d.centroid_lon != null) {
+      setFlyTarget({ lat: d.centroid_lat, lon: d.centroid_lon, zoom: 8, key: ++flyKey.current })
+    }
+  }, [])
+
+  const handlePick = useCallback(
+    (lat: number, lon: number) => {
+      const cell = cellAt(cellIndex, lat, lon)
+      const districtId = findDistrictAt(districtIndex, lat, lon)
+      const info = districtId ? districtProps.get(districtId) : undefined
+      setPin({
+        lat,
+        lon,
+        cell,
+        districtId,
+        districtName: info?.name ?? null,
+        districtState: info?.state ?? null,
+      })
+      setSelectedDistrict(districtId ? districts.find((d) => d.district_id === districtId) ?? null : null)
+    },
+    [cellIndex, districtIndex, districtProps, districts]
+  )
+
+  // Cell-level values (raw, corrected, truth, range, heavy-rain probability) for the picked cell
+  const pinnedCellId = pin?.cell?.cell_id ?? null
+  useEffect(() => {
+    if (pinnedCellId === null || !selectedRunId) {
+      setCellValues(null)
+      return
+    }
+    let cancelled = false
+    const key = `${selectedRunId}|${selectedLead}`
+    const apply = (layers: CellLayers) => {
+      if (cancelled) return
+      const at = (v: GridVariable) => layers[v]?.get(pinnedCellId) ?? null
+      setCellValues({
+        raw: at('raw'),
+        corrected: at('corrected'),
+        observed: at('observed'),
+        q10: at('q10'),
+        q50: at('q50'),
+        q90: at('q90'),
+        pHeavy: at('p_ge_64_5'),
+        pVeryHeavy: at('p_ge_115_6'),
+      })
+    }
+    const cached = cellLayerCache.current.get(key)
+    if (cached) {
+      apply(cached)
+      return () => {
+        cancelled = true
+      }
+    }
+    Promise.all(
+      CELL_VARIABLES.map((variable) =>
+        getGridForecast({ run_id: selectedRunId, lead_day: selectedLead, variable })
+          .then((r) => [variable, new Map(r.cells.map((c) => [c.cell_id, c.value] as const))] as const)
+          .catch(() => [variable, null] as const)
+      )
+    ).then((entries) => {
+      const layers: CellLayers = Object.fromEntries(entries)
+      if (cellLayerCache.current.size > 6) cellLayerCache.current.clear()
+      cellLayerCache.current.set(key, layers)
+      apply(layers)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [pinnedCellId, selectedRunId, selectedLead])
 
   if (loading) {
     return <LoadingState label="Loading Bharat VarshAI forecast dashboard…" />
@@ -128,7 +268,18 @@ export default function Dashboard() {
       <MockDataBanner show={hasMockData} />
 
       {/* Primary Dashboard Hero Header (Canva Reference Alignment) */}
-      <div className="dashboard-hero-header" style={{ padding: '0.25rem 0.25rem 0 0.25rem' }}>
+      <div
+        className="dashboard-hero-header"
+        style={{
+          padding: '0.25rem 0.25rem 0 0.25rem',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-end',
+          gap: '1rem',
+          flexWrap: 'wrap',
+        }}
+      >
+       <div style={{ minWidth: 0, flex: '1 1 480px' }}>
         <div
           style={{
             fontSize: '0.72rem',
@@ -181,6 +332,8 @@ export default function Dashboard() {
         >
           Replay-based rainfall forecasting and regime analysis to support district-level disaster management, planning and preparedness.
         </p>
+       </div>
+        <DistrictSearch districts={districts} onSelect={selectDistrict} />
       </div>
 
       {/* Tier 1: Forecast Controls & Replay Timeline */}
@@ -199,7 +352,13 @@ export default function Dashboard() {
       />
 
       {/* Tier 2: Workspace — Split View (F1), 3D Earth Globe, OR Detailed 2D Analytical Map */}
-      {isSplitView ? (
+      {dataError ? (
+        <ErrorState
+          title="Forecast data unavailable"
+          message={dataError}
+          onRetry={() => setReloadKey((k) => k + 1)}
+        />
+      ) : isSplitView ? (
         /* F1 Side-by-Side Comparison Workspace */
         <ErrorBoundary name="F1 Split View Comparison">
           <div style={{ minHeight: '520px' }}>
@@ -207,9 +366,10 @@ export default function Dashboard() {
               rawCells={rawGridCells}
               correctedCells={gridCells}
               districtsGeoJson={districtsGeoJson}
-              districtsList={districts}
               selectedDistrictId={selectedDistrict?.district_id}
-              onSelectDistrict={setSelectedDistrict}
+              onPick={handlePick}
+              pin={pin}
+              flyTo={flyTarget}
             />
           </div>
         </ErrorBoundary>
@@ -220,12 +380,12 @@ export default function Dashboard() {
             {viewMode === 'globe' ? (
               <ErrorBoundary name="3D Synoptic Monsoon Earth">
                 <GlobeHero
-                  activeRegime="Active Monsoon (Phase 2)"
+                  activeRegime={regimeLabel}
                   leadDay={selectedLead}
                   hotspots={hotspots}
                   districts={districts}
                   selectedDistrict={selectedDistrict}
-                  onSelectDistrict={setSelectedDistrict}
+                  onSelectDistrict={(d) => (d ? selectDistrict(d) : setSelectedDistrict(null))}
                   selectedLayer={selectedLayer}
                   onSelectLayer={setSelectedLayer}
                   isReplay={true}
@@ -383,9 +543,10 @@ export default function Dashboard() {
                       variable={selectedLayer}
                       cells={gridCells}
                       districtsGeoJson={districtsGeoJson}
-                      districtsList={districts}
                       selectedDistrictId={selectedDistrict?.district_id}
-                      onSelectDistrict={setSelectedDistrict}
+                      onPick={handlePick}
+                      pin={pin}
+                      flyTo={flyTarget}
                       hotspots={hotspots}
                       showHotspots={showHotspots}
                       style={{ height: '100%', width: '100%' }}
@@ -399,7 +560,14 @@ export default function Dashboard() {
           {/* Selected District Context Panel */}
           <DistrictContextPanel
             district={selectedDistrict}
-            onClose={() => setSelectedDistrict(null)}
+            pin={pin}
+            cellValues={cellValues}
+            runId={selectedRunId}
+            leadDay={selectedLead}
+            onClose={() => {
+              setSelectedDistrict(null)
+              setPin(null)
+            }}
           />
         </div>
       )}
@@ -412,7 +580,7 @@ export default function Dashboard() {
         districts={districts}
         selectedDistrictId={selectedDistrict?.district_id}
         onSelectDistrict={(district) => {
-          setSelectedDistrict(district)
+          selectDistrict(district)
           window.scrollTo({ top: 0, behavior: 'smooth' })
         }}
       />

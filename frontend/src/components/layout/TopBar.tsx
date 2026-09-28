@@ -16,14 +16,14 @@ const ROUTE_LABELS: Record<string, string> = {
 }
 
 export default function TopBar({
-  evaluationSet = 'development',
-  isMockData = true,
+  evaluationSet,
+  isMockData = false,
 }: TopBarProps) {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
   const location = useLocation()
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem('sih26080_theme') as 'dark' | 'light' | null
+    const savedTheme = localStorage.getItem('bharat_varshai_theme') as 'dark' | 'light' | null
     if (savedTheme) {
       setTheme(savedTheme)
       document.documentElement.setAttribute('data-theme', savedTheme)
@@ -36,7 +36,7 @@ export default function TopBar({
     const nextTheme = theme === 'dark' ? 'light' : 'dark'
     setTheme(nextTheme)
     document.documentElement.setAttribute('data-theme', nextTheme)
-    localStorage.setItem('sih26080_theme', nextTheme)
+    localStorage.setItem('bharat_varshai_theme', nextTheme)
   }
 
   // Determine current page label
@@ -59,7 +59,7 @@ export default function TopBar({
         <div className="system-status-indicator" title="System operational state & replay evaluation protocol">
           <span className="status-beacon" />
           <span className="status-text">
-            Operational · Replay Engine ({evaluationSet.toUpperCase()})
+            Operational · Replay Engine{evaluationSet ? ` (${evaluationSet.toUpperCase()})` : ''}
             {isMockData && <span style={{ opacity: 0.75, marginLeft: '4px' }}>· Mock Data Preview</span>}
           </span>
         </div>

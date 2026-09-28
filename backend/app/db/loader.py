@@ -264,6 +264,42 @@ def load_district_forecasts(
     return n
 
 
+def _read_priority(config: IngestionConfig, season: int) -> pd.DataFrame | None:
+    """The F5 side table written by `scripts/build_district_corrected.py` (attention level, rank, product type)."""
+    files = sorted((config.data_dir / "serving" / "priority" / f"season_{season}").glob("priority_*.parquet"))
+    return pd.concat([pd.read_parquet(f) for f in files], ignore_index=True) if files else None
+
+
+def load_district_corrected(
+    engine: Engine, config: IngestionConfig, seasons: Iterable[int] | None = None
+) -> int:
+    """Upsert the 'later stage' columns of `district_forecasts` (module docstring) from a Stage 4 run that has
+    already filled them in the Parquet (`scripts/build_district_corrected.py`): the M3-derived corrected mean,
+    the corrected wettest cell, the heavy-rain probability fields and, from the priority side table, the F5
+    attention level / priority rank / product type. M1's own `load_district_forecasts` never touches these
+    columns; this is the counterpart that does, without disturbing raw/observed on either side."""
+    n = 0
+    cols = [
+        "run_id", "lead_day", "district_id", "corrected_mean_mm", "wettest_cell_id", "wettest_cell_mean_mm",
+        "wettest_cell_q10_mm", "wettest_cell_q50_mm", "wettest_cell_q90_mm", "heavy_prob_max_cell",
+        "very_heavy_prob_max_cell", "heavy_area_fraction_expected", "very_heavy_area_fraction_expected",
+        "attention_level", "priority_rank", "product_type",
+    ]  # fmt: skip
+    for season in list(seasons) if seasons is not None else _seasons_on_disk(config, "district_forecasts"):
+        df = read_district_forecasts(config, seasons=[season])
+        df = df[df["corrected_mean_mm"].notna() | df["wettest_cell_id"].notna()]
+        if df.empty:
+            continue
+        pri = _read_priority(config, season)
+        use = cols
+        if pri is None:  # no side table yet: leave whatever the priority columns already hold
+            use = cols[:-3]
+        else:
+            df = df.merge(pri, on=["run_id", "lead_day", "district_id"], how="left")
+        n += upsert(engine, t.district_forecasts, _records(df, use), use[:3], use[3:])
+    return n
+
+
 def load_district_history(
     engine: Engine, config: IngestionConfig, seasons: Iterable[int] | None = None
 ) -> int:
@@ -303,5 +339,6 @@ def load_all(
     report.rows["nwp_runs"] = load_runs(engine, config, seasons)
     report.rows["district_forecasts"] = load_district_forecasts(engine, config, seasons)
     report.rows["district_history"] = load_district_history(engine, config, seasons)
+    report.rows["district_forecasts_corrected"] = load_district_corrected(engine, config, seasons)
     log.info("loaded M1 products: %s", report)
     return report

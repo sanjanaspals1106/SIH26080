@@ -63,3 +63,75 @@ export interface ReliabilityResponse extends ApiResponseMeta {
   brier_score: number | null
   brier_skill_score: number | null
 }
+
+// ---- Verification report (GET /verification) -------------------------------------------------------------
+// Point estimates read from the stored metrics files, pooled over lead days 1-3 and all valid IMD cells.
+
+export interface ThresholdScores {
+  pod: number | null
+  far: number | null
+  csi: number | null
+  ets: number | null
+  frequency_bias: number | null
+  fss5: number | null
+  n_obs_events: number | null
+}
+
+export interface ModelScores {
+  key: string
+  label: string
+  description: string
+  forecast_type: ForecastType
+  scalars: { rmse: number | null; mae: number | null; bias: number | null }
+  thresholds: Record<string, ThresholdScores>
+}
+
+export interface Highlight {
+  kind: 'improved' | 'declined' | 'note'
+  text: string
+}
+
+export interface HoldoutLock {
+  timestamp: string | null
+  git_commit: string | null
+  run_count: number | null
+  forced_rerun: boolean
+}
+
+export interface VerificationEvaluation {
+  evaluation_set: EvaluationSet
+  label: string
+  seasons: number[]
+  models: ModelScores[]
+  corrected_key: string
+  thresholds_mm: number[]
+  highlights: Highlight[]
+  lock: HoldoutLock | null
+}
+
+export interface ProbabilityRow {
+  threshold_mm: number
+  brier_uncalibrated: number
+  brier_calibrated: number
+  brier_skill_score: number
+  climatology_rate: number
+  n_events: number | null
+}
+
+export interface CoverageRow {
+  lead_day: number
+  coverage: number
+  target: number
+  tolerance: number
+  n_samples: number
+  within_tolerance: boolean
+}
+
+export interface VerificationReport {
+  mode: 'replay'
+  development: VerificationEvaluation
+  holdout: VerificationEvaluation | null
+  probability: { evaluation_set: 'development'; rows: ProbabilityRow[] }
+  range_coverage: { evaluation_set: 'development'; interval: string; rows: CoverageRow[] }
+  pooling: string
+}

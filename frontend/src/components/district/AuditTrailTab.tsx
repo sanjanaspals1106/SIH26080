@@ -1,18 +1,91 @@
+import type { ReactNode } from 'react'
 import type { AuditTrailResponse } from '../../types'
+import { fmtMm } from '../../utils/format'
 
 interface AuditTrailTabProps {
   auditTrail: AuditTrailResponse | null
   loading?: boolean
 }
 
-export default function AuditTrailTab({
-  auditTrail,
-  loading = false,
-}: AuditTrailTabProps) {
+const mono = { fontFamily: 'var(--font-mono)' } as const
+
+function signed(value: number, digits = 1): string {
+  return `${value > 0 ? '+' : ''}${value.toFixed(digits)}`
+}
+
+function compass(deg: number): string {
+  const names = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
+  return names[Math.round(deg / 45) % 8]
+}
+
+function Strong({ children, color }: { children: ReactNode; color?: string }) {
+  return <strong style={{ color: color ?? 'var(--text-primary)', ...mono }}>{children}</strong>
+}
+
+function Step({
+  n,
+  title,
+  children,
+  highlight = false,
+  subtle = false,
+}: {
+  n: number
+  title: string
+  children: ReactNode
+  highlight?: boolean
+  subtle?: boolean
+}) {
+  return (
+    <div
+      style={{
+        padding: '0.85rem',
+        backgroundColor: subtle ? 'var(--bg-card-subtle)' : 'var(--bg-card)',
+        border: `1px solid ${highlight ? 'var(--accent-cyan)' : 'var(--border-subtle)'}`,
+        borderRadius: 'var(--radius-md)',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
+        <span
+          style={{
+            width: '20px',
+            height: '20px',
+            borderRadius: '50%',
+            backgroundColor: highlight ? 'var(--accent-cyan)' : 'var(--bg-input)',
+            color: highlight ? 'var(--text-inverse)' : 'var(--text-primary)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '0.72rem',
+            fontWeight: 800,
+          }}
+        >
+          {n}
+        </span>
+        <strong style={{ fontSize: '0.84rem', color: highlight ? 'var(--accent-cyan)' : 'var(--text-primary)' }}>
+          {title}
+        </strong>
+      </div>
+      <div
+        style={{
+          fontSize: '0.78rem',
+          color: 'var(--text-secondary)',
+          paddingLeft: '1.75rem',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.2rem',
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  )
+}
+
+export default function AuditTrailTab({ auditTrail, loading = false }: AuditTrailTabProps) {
   if (loading) {
     return (
       <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-        Loading AI Correction Audit Trail…
+        Loading AI correction audit trail…
       </div>
     )
   }
@@ -20,12 +93,16 @@ export default function AuditTrailTab({
   if (!auditTrail || !auditTrail.steps) {
     return (
       <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-        Audit trail data is not available yet for this district forecast.
+        No audit trail is stored for this district at the selected run and lead day.
       </div>
     )
   }
 
   const { steps, summary, forecast_id, evaluation_set } = auditTrail
+  const { raw, regime, history, correction, corrected, confidence, record } = steps
+  const range = confidence.range_wettest_cell_mm
+  const lps = regime?.nearest_lps
+  let n = 0
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -42,156 +119,153 @@ export default function AuditTrailTab({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
-          <span style={{ fontSize: '0.74rem', fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--accent-cyan)', textTransform: 'uppercase' }}>
+          <span style={{ fontSize: '0.74rem', fontWeight: 800, ...mono, color: 'var(--accent-cyan)', textTransform: 'uppercase' }}>
             F2 · AI Correction Decision Sequence
           </span>
-          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-            Forecast ID: {forecast_id} ({evaluation_set?.toUpperCase()})
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', ...mono }}>
+            Forecast ID: {forecast_id}
+            {evaluation_set ? ` (${evaluation_set.toUpperCase()})` : ''}
           </span>
         </div>
-        <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-          {summary}
-        </div>
+        <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)' }}>{summary}</div>
         <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-          PRD Rule H5: The audit trail states what the model did. It does not claim to prove why the weather happened.
+          The audit trail states what the model did. It does not claim to prove why the weather happened.
         </div>
       </div>
 
-      {/* 7-Step Sequence Cards */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-        {/* Step 1: Raw Forecast */}
-        <div
-          style={{
-            padding: '0.85rem',
-            backgroundColor: 'var(--bg-card)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: 'var(--radius-md)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
-            <span style={{ width: '20px', height: '20px', borderRadius: '50%', backgroundColor: 'var(--bg-input)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 800 }}>1</span>
-            <strong style={{ fontSize: '0.84rem', color: 'var(--text-primary)' }}>1. Raw NWP Input</strong>
+        <Step n={++n} title="Raw NWP Input">
+          <div>
+            Raw district mean: <Strong>{fmtMm(raw.district_mean_mm)} mm</Strong>
+            {raw.wettest_cell_mm != null && (
+              <>
+                {' '}· Raw value at the wettest cell: <Strong>{fmtMm(raw.wettest_cell_mm)} mm</Strong>
+              </>
+            )}
           </div>
-          <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', paddingLeft: '1.75rem' }}>
-            Raw district mean: <strong style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{steps.raw.district_mean_mm} mm</strong> · Raw wettest cell: <strong style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{steps.raw.wettest_cell_mm} mm</strong>
-          </div>
-        </div>
+        </Step>
 
-        {/* Step 2: Detected Regime */}
-        <div
-          style={{
-            padding: '0.85rem',
-            backgroundColor: 'var(--bg-card)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: 'var(--radius-md)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
-            <span style={{ width: '20px', height: '20px', borderRadius: '50%', backgroundColor: 'var(--bg-input)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 800 }}>2</span>
-            <strong style={{ fontSize: '0.84rem', color: 'var(--text-primary)' }}>2. Detected Meteorological Regime</strong>
-          </div>
-          <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', paddingLeft: '1.75rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+        {regime && (
+          <Step n={++n} title="Detected Meteorological Regime">
             <div>
-              Phase Probabilities: Active <strong>{Math.round(steps.regime.phase.active * 100)}%</strong>, Normal <strong>{Math.round(steps.regime.phase.normal * 100)}%</strong>, Break <strong>{Math.round(steps.regime.phase.break * 100)}%</strong> (Confidence: <strong style={{ color: 'var(--accent-cyan)' }}>{steps.regime.phase.confidence_band}</strong>)
+              Phase probabilities: Active <strong>{Math.round(regime.phase.active * 100)}%</strong>, Normal{' '}
+              <strong>{Math.round(regime.phase.normal * 100)}%</strong>, Break{' '}
+              <strong>{Math.round(regime.phase.break * 100)}%</strong> (confidence:{' '}
+              <strong style={{ color: 'var(--accent-cyan)' }}>{regime.phase.confidence_band}</strong>)
             </div>
+            {lps?.present && lps.distance_km != null ? (
+              <div>
+                Nearest low-pressure system: <Strong>{lps.distance_km} km</Strong>
+                {lps.bearing_deg != null && (
+                  <>
+                    {' '}toward <Strong>{lps.bearing_deg}° ({compass(lps.bearing_deg)})</Strong>
+                  </>
+                )}
+                {lps.influence != null && (
+                  <>
+                    , influence index <Strong>{lps.influence}</Strong>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div>No low-pressure system detected near this district.</div>
+            )}
+            {(regime.orographic_influence != null || regime.coastal_influence != null) && (
+              <div>
+                Terrain effects:{' '}
+                {regime.orographic_influence != null && (
+                  <>
+                    orographic index <Strong>{regime.orographic_influence}</Strong>
+                  </>
+                )}
+                {regime.orographic_influence != null && regime.coastal_influence != null && ', '}
+                {regime.coastal_influence != null && (
+                  <>
+                    coastal index <Strong>{regime.coastal_influence}</Strong>
+                  </>
+                )}
+              </div>
+            )}
+            {regime.note && <div style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>{regime.note}</div>}
+          </Step>
+        )}
+
+        {history && history.median_diff_mm != null && (
+          <Step n={++n} title="Past Raw-Forecast Error Under a Similar Regime">
             <div>
-              Nearest Low-Pressure System: Distance <strong>{steps.regime.nearest_lps.distance_km} km</strong>, Bearing <strong>{steps.regime.nearest_lps.bearing_deg}°</strong>, Influence index <strong>{steps.regime.nearest_lps.influence}</strong>
+              Under a <strong>{history.phase}</strong> phase with{' '}
+              {history.lps_near ? 'a low-pressure system present' : 'no low-pressure system'}, observed minus raw district
+              mean had a median of{' '}
+              <Strong color="var(--accent-sky)">{signed(history.median_diff_mm, 2)} mm</Strong>
+              {history.q25_diff_mm != null && history.q75_diff_mm != null && (
+                <> (IQR {fmtMm(history.q25_diff_mm)} to {fmtMm(history.q75_diff_mm)} mm)</>
+              )}{' '}
+              across <strong>{history.n_dates} dates</strong>
+              {history.note ? ` · ${history.note}` : ''}.
             </div>
-            <div>
-              Terrain Effects: Orographic index <strong>{steps.regime.orographic_influence}</strong>, Coastal index <strong>{steps.regime.coastal_influence}</strong>
-            </div>
-          </div>
-        </div>
+          </Step>
+        )}
 
-        {/* Step 3: Past Bias Table History */}
-        <div
-          style={{
-            padding: '0.85rem',
-            backgroundColor: 'var(--bg-card)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: 'var(--radius-md)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
-            <span style={{ width: '20px', height: '20px', borderRadius: '50%', backgroundColor: 'var(--bg-input)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 800 }}>3</span>
-            <strong style={{ fontSize: '0.84rem', color: 'var(--text-primary)' }}>3. Past Empirical Bias Under Similar Regime</strong>
+        <Step n={++n} title="Model Correction Applied">
+          <div>
+            District mean change:{' '}
+            <Strong color="var(--accent-cyan)">
+              {correction.district_mean_mm != null ? `${signed(correction.district_mean_mm, 2)} mm` : '—'}
+            </Strong>
+            {correction.wettest_cell_mm != null && (
+              <>
+                {' '}· Wettest cell change:{' '}
+                <Strong color="var(--accent-cyan)">{signed(correction.wettest_cell_mm, 2)} mm</Strong>
+              </>
+            )}
           </div>
-          <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', paddingLeft: '1.75rem' }}>
-            Under {steps.history.phase} phase and {steps.history.lps_near ? 'LPS within 500km' : 'No near LPS'}: Historical Median Error = <strong style={{ color: 'var(--accent-sky)', fontFamily: 'var(--font-mono)' }}>{steps.history.median_diff_mm > 0 ? `+${steps.history.median_diff_mm}` : steps.history.median_diff_mm} mm</strong> [IQR: {steps.history.q25_diff_mm} to {steps.history.q75_diff_mm} mm] across <strong>{steps.history.n_dates} dates</strong> ({steps.history.note || 'training archive'}).
-          </div>
-        </div>
+        </Step>
 
-        {/* Step 4: Correction Applied */}
-        <div
-          style={{
-            padding: '0.85rem',
-            backgroundColor: 'var(--bg-card)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: 'var(--radius-md)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
-            <span style={{ width: '20px', height: '20px', borderRadius: '50%', backgroundColor: 'var(--bg-input)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 800 }}>4</span>
-            <strong style={{ fontSize: '0.84rem', color: 'var(--text-primary)' }}>4. Model Correction Applied</strong>
+        <Step n={++n} title="AI-Corrected Forecast Output" highlight>
+          <div>
+            Corrected district mean: <Strong>{fmtMm(corrected.district_mean_mm)} mm</Strong>
+            {corrected.wettest_cell_mm != null && (
+              <>
+                {' '}· Corrected wettest cell: <Strong>{fmtMm(corrected.wettest_cell_mm)} mm</Strong>
+              </>
+            )}
           </div>
-          <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', paddingLeft: '1.75rem' }}>
-            District Mean Correction: <strong style={{ color: 'var(--accent-cyan)', fontFamily: 'var(--font-mono)' }}>+{steps.correction.district_mean_mm} mm</strong> · Wettest Cell Correction: <strong style={{ color: 'var(--accent-cyan)', fontFamily: 'var(--font-mono)' }}>+{steps.correction.wettest_cell_mm} mm</strong>
-          </div>
-        </div>
+        </Step>
 
-        {/* Step 5: Corrected Output */}
-        <div
-          style={{
-            padding: '0.85rem',
-            backgroundColor: 'var(--bg-card)',
-            border: '1px solid var(--accent-cyan)',
-            borderRadius: 'var(--radius-md)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
-            <span style={{ width: '20px', height: '20px', borderRadius: '50%', backgroundColor: 'var(--accent-cyan)', color: 'var(--text-inverse)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 800 }}>5</span>
-            <strong style={{ fontSize: '0.84rem', color: 'var(--accent-cyan)' }}>5. AI-Corrected Forecast Output</strong>
-          </div>
-          <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', paddingLeft: '1.75rem' }}>
-            Final Corrected District Mean: <strong style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', fontSize: '0.95rem' }}>{steps.corrected.district_mean_mm} mm</strong> · Corrected Wettest Cell: <strong style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', fontSize: '0.95rem' }}>{steps.corrected.wettest_cell_mm} mm</strong>
-          </div>
-        </div>
+        {(range.q10 != null || confidence.heavy_prob_max_cell != null) && (
+          <Step n={++n} title="Uncertainty and Coverage">
+            {range.q10 != null && range.q90 != null && (
+              <div>
+                Wettest-cell range (q10 to q90): <Strong color="var(--accent-sky)">{range.q10} to {range.q90} mm</Strong>
+                {range.q50 != null && <> (median {range.q50} mm)</>}
+                {confidence.measured_coverage_q10_q90 != null && (
+                  <>
+                    {' '}· Measured coverage of this interval in development:{' '}
+                    <strong>{Math.round(confidence.measured_coverage_q10_q90 * 100)}%</strong>
+                  </>
+                )}
+              </div>
+            )}
+            {confidence.heavy_prob_max_cell != null && (
+              <div>
+                Probability of ≥64.5 mm at the wettest cell:{' '}
+                <strong>{Math.round(confidence.heavy_prob_max_cell * 100)}%</strong>
+                {confidence.very_heavy_prob_max_cell != null && (
+                  <>
+                    {' '}· ≥115.6 mm: <strong>{Math.round(confidence.very_heavy_prob_max_cell * 100)}%</strong>
+                  </>
+                )}
+              </div>
+            )}
+          </Step>
+        )}
 
-        {/* Step 6: Confidence & Uncertainty */}
-        <div
-          style={{
-            padding: '0.85rem',
-            backgroundColor: 'var(--bg-card)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: 'var(--radius-md)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
-            <span style={{ width: '20px', height: '20px', borderRadius: '50%', backgroundColor: 'var(--bg-input)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 800 }}>6</span>
-            <strong style={{ fontSize: '0.84rem', color: 'var(--text-primary)' }}>6. Uncertainty and Coverage</strong>
+        <Step n={++n} title="Pipeline Execution Record" subtle>
+          <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', ...mono }}>
+            Model: {record.model_version} | Features: {record.feature_set_version} | Alignment: {record.alignment_method}
+            {' '}| Product: {record.product_type} | Fallback: {record.fallback_used ? record.fallback_reason ?? 'used' : 'none'}
           </div>
-          <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', paddingLeft: '1.75rem' }}>
-            Wettest Cell Range: [{steps.confidence.range_wettest_cell_mm.q10} – {steps.confidence.range_wettest_cell_mm.q90} mm] (Measured Empirical Coverage: <strong>{Math.round((steps.confidence.measured_coverage_q10_q90 || 0.78) * 100)}%</strong>) · Heavy Rain Prob: <strong>{Math.round((steps.confidence.heavy_prob_max_cell || 0) * 100)}%</strong>
-          </div>
-        </div>
-
-        {/* Step 7: Execution Record Metadata */}
-        <div
-          style={{
-            padding: '0.85rem',
-            backgroundColor: 'var(--bg-card-subtle)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: 'var(--radius-md)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
-            <span style={{ width: '20px', height: '20px', borderRadius: '50%', backgroundColor: 'var(--bg-input)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 800 }}>7</span>
-            <strong style={{ fontSize: '0.84rem', color: 'var(--text-primary)' }}>7. Pipeline Execution Record</strong>
-          </div>
-          <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', paddingLeft: '1.75rem' }}>
-            Model: {steps.record.model_version} | Feature Set: {steps.record.feature_set_version} | Alignment: {steps.record.alignment_method} | Fallback: {steps.record.fallback_used ? 'True' : 'False'}
-          </div>
-        </div>
+        </Step>
       </div>
     </div>
   )

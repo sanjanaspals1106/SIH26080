@@ -6,12 +6,12 @@ import {
   loadRealisticSpecularTexture,
   createRainfallOverlayTexture,
   latLonToVector3,
-  DISTRICT_COORDINATES,
 } from './EarthTextures'
 import type { DistrictForecastSummary, GridVariable, Hotspot } from '../../types'
 
 interface GlobeHeroProps {
-  activeRegime?: string
+  /** Real phase label from /regime for the selected run and lead; the badge is hidden when null. */
+  activeRegime?: string | null
   leadDay?: number
   hotspots?: Hotspot[]
   districts?: DistrictForecastSummary[]
@@ -25,7 +25,7 @@ interface GlobeHeroProps {
 }
 
 export default function GlobeHero({
-  activeRegime = 'Active Monsoon (Phase 2)',
+  activeRegime = null,
   leadDay = 1,
   hotspots = [],
   districts = [],
@@ -116,11 +116,10 @@ export default function GlobeHero({
   // Focus smoothly on selected district when changed
   useEffect(() => {
     if (!selectedDistrict || !earthGroupRef.current) return
-    const coords = DISTRICT_COORDINATES[selectedDistrict.district_id]
-    if (coords) {
+    if (selectedDistrict.centroid_lat != null && selectedDistrict.centroid_lon != null) {
       targetRotationRef.current = {
-        y: -Math.PI / 2 - (coords.lon * Math.PI) / 180,
-        x: (coords.lat * Math.PI) / 180,
+        y: -Math.PI / 2 - (selectedDistrict.centroid_lon * Math.PI) / 180,
+        x: (selectedDistrict.centroid_lat * Math.PI) / 180,
       }
     }
   }, [selectedDistrict])
@@ -303,29 +302,38 @@ export default function GlobeHero({
       districtObj?: DistrictForecastSummary
     }> = []
 
-    // Add district meteorological points
-    if (districts.length > 0) {
-      districts.forEach((d) => {
-        const coords = DISTRICT_COORDINATES[d.district_id]
-        if (coords) {
-          const rain =
-            selectedLayer === 'raw'
-              ? d.raw_mean_mm
-              : selectedLayer === 'difference'
-              ? Math.abs(d.corrected_mean_mm - d.raw_mean_mm)
-              : d.corrected_mean_mm
-
-          itemsToRender.push({
-            name: `${d.district_name} (${d.state})`,
-            lat: coords.lat,
-            lon: coords.lon,
-            rain,
-            isHotspot: d.attention_level === 'HIGH',
-            districtObj: d,
-          })
-        }
-      })
+    // District markers at real centroids. 637 columns would be unreadable, so draw the wettest districts by the
+    // selected layer, every district flagged HIGH, and the selected district; the rainfall overlay texture
+    // still carries all of them.
+    const rainOf = (d: DistrictForecastSummary) =>
+      selectedLayer === 'raw'
+        ? d.raw_mean_mm
+        : selectedLayer === 'difference'
+        ? Math.abs(d.corrected_mean_mm - d.raw_mean_mm)
+        : d.corrected_mean_mm
+    const placed = districts.filter(
+      (d) => d.centroid_lat != null && d.centroid_lon != null && d.raw_mean_mm != null && d.corrected_mean_mm != null
+    )
+    const chosen = new Map<string, DistrictForecastSummary>()
+    ;[...placed]
+      .sort((a, b) => rainOf(b) - rainOf(a))
+      .slice(0, 40)
+      .forEach((d) => chosen.set(d.district_id, d))
+    placed.filter((d) => d.attention_level === 'HIGH').forEach((d) => chosen.set(d.district_id, d))
+    if (selectedDistrict && selectedDistrict.centroid_lat != null) {
+      const sel = placed.find((d) => d.district_id === selectedDistrict.district_id)
+      if (sel) chosen.set(sel.district_id, sel)
     }
+    chosen.forEach((d) => {
+      itemsToRender.push({
+        name: `${d.district_name} (${d.state})`,
+        lat: d.centroid_lat as number,
+        lon: d.centroid_lon as number,
+        rain: rainOf(d),
+        isHotspot: d.attention_level === 'HIGH',
+        districtObj: d,
+      })
+    })
 
     if (showHotspots && hotspots.length > 0) {
       hotspots.forEach((h) => {
@@ -659,20 +667,22 @@ export default function GlobeHero({
             <span>3D SYNOPTIC MONSOON EARTH</span>
           </div>
 
-          <div
-            style={{
-              padding: '0.25rem 0.65rem',
-              borderRadius: '9999px',
-              backgroundColor: 'var(--bg-card-subtle)',
-              border: '1px solid var(--border-subtle)',
-              color: 'var(--text-secondary)',
-              fontSize: '0.74rem',
-              fontFamily: 'var(--font-mono)',
-              fontWeight: 600,
-            }}
-          >
-            Regime: <strong style={{ color: 'var(--accent-cyan)' }}>{activeRegime}</strong>
-          </div>
+          {activeRegime && (
+            <div
+              style={{
+                padding: '0.25rem 0.65rem',
+                borderRadius: '9999px',
+                backgroundColor: 'var(--bg-card-subtle)',
+                border: '1px solid var(--border-subtle)',
+                color: 'var(--text-secondary)',
+                fontSize: '0.74rem',
+                fontFamily: 'var(--font-mono)',
+                fontWeight: 600,
+              }}
+            >
+              Regime: <strong style={{ color: 'var(--accent-cyan)' }}>{activeRegime}</strong>
+            </div>
+          )}
 
           <div
             style={{
@@ -702,7 +712,7 @@ export default function GlobeHero({
                 fontFamily: 'var(--font-mono)',
               }}
             >
-              MOCK DATA REPLAY
+              REPLAY MODE
             </div>
           )}
         </div>

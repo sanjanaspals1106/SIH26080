@@ -11,15 +11,15 @@ interface AppShellProps {
 
 export default function AppShell({
   children,
-  evaluationSet = 'development',
-  isMockData = true,
+  evaluationSet,
+  isMockData = false,
 }: AppShellProps) {
   const [collapsed, setCollapsed] = useState<boolean>(() => {
-    return localStorage.getItem('sih26080_sidebar_collapsed') === 'true'
+    return localStorage.getItem('bharat_varshai_sidebar_collapsed') === 'true'
   })
 
   useEffect(() => {
-    localStorage.setItem('sih26080_sidebar_collapsed', String(collapsed))
+    localStorage.setItem('bharat_varshai_sidebar_collapsed', String(collapsed))
   }, [collapsed])
 
   return (

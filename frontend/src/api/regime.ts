@@ -1,9 +1,4 @@
-import { apiClient, fetchWithMockFallback } from './client'
-import {
-  MOCK_REGIME,
-  MOCK_TRANSITIONS,
-  MOCK_ANALOGS,
-} from './mock/mockData'
+import { apiClient } from './client'
 import type {
   RegimeResponse,
   RegimeTransitionsResponse,
@@ -14,32 +9,37 @@ export async function getRegime(params?: {
   run_id?: string
   lead_day?: number
 }): Promise<RegimeResponse> {
-  return fetchWithMockFallback(
-    () => apiClient.get<RegimeResponse>('/regime', { params }),
-    MOCK_REGIME
-  )
+  const response = await apiClient.get<RegimeResponse>('/regime', { params })
+  return response.data
 }
 
 export async function getRegimeTransitions(params?: {
   run_id?: string
   district_id?: string
 }): Promise<RegimeTransitionsResponse> {
-  return fetchWithMockFallback(
-    () =>
-      apiClient.get<RegimeTransitionsResponse>('/regime/transitions', {
-        params,
-      }),
-    MOCK_TRANSITIONS
-  )
+  const response = await apiClient.get<RegimeTransitionsResponse>('/regime/transitions', { params })
+  return response.data
 }
 
+// Real data only: a district or run with no analogs (404) or a failed call gives null, never mock data.
 export async function getHistoricalAnalogs(params?: {
   run_id?: string
   lead_day?: number
   district_id?: string
-}): Promise<AnalogsResponse> {
-  return fetchWithMockFallback(
-    () => apiClient.get<AnalogsResponse>('/analogs', { params }),
-    MOCK_ANALOGS
-  )
+}): Promise<AnalogsResponse | null> {
+  try {
+    const response = await apiClient.get<AnalogsResponse>('/analogs', { params })
+    return response.data
+  } catch {
+    return null
+  }
+}
+
+/** Same endpoint as `getRegime` but never substitutes mock data: callers hide the element on failure. */
+export async function getRegimeStrict(params: {
+  run_id: string
+  lead_day: number
+}): Promise<RegimeResponse> {
+  const res = await apiClient.get<RegimeResponse>('/regime', { params })
+  return res.data
 }

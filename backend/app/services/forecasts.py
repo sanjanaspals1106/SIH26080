@@ -17,6 +17,7 @@ _FORECAST_COLUMNS = [
     f.c.wettest_cell_mean_mm, f.c.wettest_cell_q10_mm, f.c.wettest_cell_q50_mm, f.c.wettest_cell_q90_mm,
     f.c.heavy_prob_max_cell, f.c.very_heavy_prob_max_cell, f.c.heavy_area_fraction_expected,
     f.c.very_heavy_area_fraction_expected, f.c.attention_level, f.c.priority_rank, f.c.fallback_used, f.c.fallback_reason,
+    d.c.centroid_lat, d.c.centroid_lon, d.c.n_effective_cells,
 ]  # fmt: skip
 
 

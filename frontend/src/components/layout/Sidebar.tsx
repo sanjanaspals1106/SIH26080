@@ -148,7 +148,7 @@ export default function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
         {!collapsed ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
             <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-              SIH26080 Platform
+              Regime-Aware Platform
             </span>
             <span
               style={{
@@ -180,7 +180,7 @@ export default function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
               alignItems: 'center',
               width: '100%',
             }}
-            title="SIH26080 Active"
+            title="Platform active"
           >
             <span
               style={{

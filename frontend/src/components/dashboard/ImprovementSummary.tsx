@@ -27,7 +27,8 @@ export default function ImprovementSummary({
     )
   }
 
-  if (!summary) return null
+  // Nothing to compare (no observation for this day, or the summary could not be computed): show nothing.
+  if (!summary || summary.total_valid_cells === 0 || summary.total_districts === 0) return null
 
   const cellPct = Math.round((summary.cells_corrected_closer / summary.total_valid_cells) * 100)
   const districtPct = Math.round((summary.districts_corrected_closer / summary.total_districts) * 100)

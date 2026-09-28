@@ -1,9 +1,4 @@
-import { apiClient, fetchWithMockFallback } from './client'
-import {
-  MOCK_PRIORITY_TABLE,
-  MOCK_DISTRICTS_FORECAST,
-  MOCK_DISTRICTS_GEOJSON,
-} from './mock/mockData'
+import { apiClient } from './client'
 import type {
   PriorityTableResponse,
   DistrictForecastSummary,
@@ -19,36 +14,27 @@ export interface PriorityDistrictsParams {
 export async function getPriorityDistricts(
   params?: PriorityDistrictsParams
 ): Promise<PriorityTableResponse> {
-  return fetchWithMockFallback(
-    () =>
-      apiClient.get<PriorityTableResponse>('/districts/priority', {
-        params,
-      }),
-    MOCK_PRIORITY_TABLE
-  )
+  const res = await apiClient.get<PriorityTableResponse>('/districts/priority', { params })
+  return res.data
 }
 
 export async function getDistrictDetail(
   districtId: string,
   params?: { run_id?: string; lead_day?: number }
 ): Promise<DistrictForecastSummary | null> {
+  // Never substitute another district: a missing district is reported as null.
   try {
-    const response = await apiClient.get<DistrictForecastSummary>(
+    const response = await apiClient.get<{ forecasts: DistrictForecastSummary[] }>(
       `/forecasts/districts/${districtId}`,
       { params }
     )
-    return response.data
+    return response.data.forecasts[0] ?? null
   } catch {
-    const found = MOCK_DISTRICTS_FORECAST.districts.find(
-      (d) => d.district_id === districtId
-    )
-    return found || MOCK_DISTRICTS_FORECAST.districts[0]
+    return null
   }
 }
 
 export async function getDistrictGeoJSON(): Promise<GeoJsonFeatureCollection> {
-  return fetchWithMockFallback(
-    () => apiClient.get<GeoJsonFeatureCollection>('/map/districts'),
-    MOCK_DISTRICTS_GEOJSON
-  )
+  const res = await apiClient.get<GeoJsonFeatureCollection>('/map/districts')
+  return res.data
 }

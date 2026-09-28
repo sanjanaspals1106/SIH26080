@@ -1,4 +1,5 @@
 import type { TransitionEvent, TransitionSeriesPoint } from '../../types'
+import { fmtMm } from '../../utils/format'
 
 interface TransitionTimelineProps {
   series: TransitionSeriesPoint[]
@@ -127,9 +128,15 @@ export default function TransitionTimeline({
 
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Domain Rain Impact:</div>
-              <div style={{ fontSize: '0.88rem', fontWeight: 700, fontFamily: 'var(--font-mono)', color: ev.domain_mean_corrected_change_mm >= 0 ? '#34d399' : '#fb923c' }}>
-                {ev.domain_mean_corrected_change_mm > 0 ? `+${ev.domain_mean_corrected_change_mm}` : ev.domain_mean_corrected_change_mm} mm/day
-              </div>
+              {ev.domain_mean_corrected_change_mm == null ? (
+                <div style={{ fontSize: '0.88rem', fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
+                  Not available
+                </div>
+              ) : (
+                <div style={{ fontSize: '0.88rem', fontWeight: 700, fontFamily: 'var(--font-mono)', color: ev.domain_mean_corrected_change_mm >= 0 ? '#34d399' : '#fb923c' }}>
+                  {ev.domain_mean_corrected_change_mm > 0 ? `+${fmtMm(ev.domain_mean_corrected_change_mm)}` : fmtMm(ev.domain_mean_corrected_change_mm)} mm/day
+                </div>
+              )}
             </div>
           </div>
         ))}

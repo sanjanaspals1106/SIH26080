@@ -43,7 +43,7 @@ def test_file_is_found_through_config(cfg):
 
 def test_no_file_configured(cfg):
     with pytest.raises(MissingInputError, match="districts.yaml"):
-        load_districts(config=cfg)
+        load_districts(config=with_districts(cfg, file=None))  # config/districts.yaml now names the real file
 
 
 def test_missing_file(cfg, tmp_path):

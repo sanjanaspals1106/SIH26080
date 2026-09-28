@@ -118,7 +118,7 @@ export default function RegimeTransitions() {
             >
               {runs.map((r) => (
                 <option key={r.run_id} value={r.run_id}>
-                  {r.initialization_time.split('T')[0]} ({r.evaluation_set.toUpperCase()})
+                  {r.initialization_time.split('T')[0]} ({(r.evaluation_set ?? "unknown").toUpperCase()})
                 </option>
               ))}
             </select>

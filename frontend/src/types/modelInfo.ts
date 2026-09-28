@@ -53,6 +53,14 @@ export interface MapMetadataResponse {
   layers: string[]
 }
 
+export interface MapGridSummary {
+  n_lat: number
+  n_lon: number
+  spacing_deg: number
+  n_cells: number
+  n_valid_cells: number
+}
+
 export interface HealthResponse {
   status: 'ok' | 'degraded' | 'error'
   version: string

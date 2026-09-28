@@ -79,6 +79,9 @@ class DistrictForecast(BaseModel):
     attention_level: str | None
     priority_rank: int | None
     flags: Flags
+    centroid_lat: float | None = None  # from `districts`; lets the map and globe place a district without a table
+    centroid_lon: float | None = None
+    n_effective_cells: float | None = None
 
 
 class DistrictForecastList(Page):

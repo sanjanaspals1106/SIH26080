@@ -1,4 +1,28 @@
 import type { NwpRun } from '../../types'
+import EvaluationBadge from '../common/EvaluationBadge'
+
+const labelStyle = {
+  fontSize: '0.75rem',
+  fontWeight: 600,
+  color: 'var(--text-muted)',
+  textTransform: 'uppercase' as const,
+  letterSpacing: '0.04em',
+}
+
+const fieldStyle = {
+  padding: '0.35rem 0.65rem',
+  backgroundColor: 'var(--bg-input)',
+  color: 'var(--text-primary)',
+  border: '1px solid var(--border-subtle)',
+  borderRadius: 'var(--radius-sm)',
+  fontSize: '0.82rem',
+  fontFamily: 'var(--font-mono)',
+  fontWeight: 600,
+  cursor: 'pointer',
+  outline: 'none',
+}
+
+const dateOf = (r: NwpRun) => r.initialization_time.split('T')[0]
 
 interface ForecastControlsProps {
   runs: NwpRun[]
@@ -28,52 +52,84 @@ export default function ForecastControls({
   onToggleHotspots,
 }: ForecastControlsProps) {
   const currentRun = runs.find((r) => r.run_id === selectedRunId) || runs[0]
+  const seasons = Array.from(new Set(runs.map((r) => r.season))).sort((a, b) => a - b)
+  const seasonRuns = runs
+    .filter((r) => r.season === currentRun?.season)
+    .sort((a, b) => a.initialization_time.localeCompare(b.initialization_time))
+  const runIndex = seasonRuns.findIndex((r) => r.run_id === currentRun?.run_id)
+  const currentDate = currentRun ? dateOf(currentRun) : ''
+
+  const step = (delta: number) => {
+    const next = seasonRuns[runIndex + delta]
+    if (next) onSelectRunId(next.run_id)
+  }
+
+  // A typed date only applies when a run was issued that day (runs are daily, June to September).
+  const selectDate = (date: string) => {
+    const match = seasonRuns.find((r) => dateOf(r) === date)
+    if (match) onSelectRunId(match.run_id)
+  }
+
+  // Keep the same calendar day when changing season, falling back to the season's first run.
+  const selectSeason = (season: number) => {
+    const monthDay = currentDate.slice(5)
+    const candidates = runs.filter((r) => r.season === season)
+    const same = candidates.find((r) => dateOf(r).slice(5) === monthDay)
+    const first = [...candidates].sort((a, b) => a.initialization_time.localeCompare(b.initialization_time))[0]
+    const target = same ?? first
+    if (target) onSelectRunId(target.run_id)
+  }
+
+  // IMD day each lead verifies against: the run's first IMD date is the lead-1 day.
+  const validDate = (() => {
+    if (!currentRun?.first_imd_date) return null
+    const d = new Date(`${currentRun.first_imd_date}T00:00:00Z`)
+    d.setUTCDate(d.getUTCDate() + selectedLead - 1)
+    return d.toISOString().slice(0, 10)
+  })()
 
   return (
     <div className="control-toolbar">
       <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
-        {/* Replay Run Selector */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            Forecast Run:
-          </span>
-          <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
-            <select
-              id="run-select"
-              value={selectedRunId}
-              onChange={(e) => onSelectRunId(e.target.value)}
-              style={{
-                padding: '0.35rem 1.8rem 0.35rem 0.65rem',
-                backgroundColor: 'var(--bg-input)',
-                color: 'var(--text-primary)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-sm)',
-                fontSize: '0.82rem',
-                fontFamily: 'var(--font-mono)',
-                fontWeight: 600,
-                cursor: 'pointer',
-                appearance: 'none',
-                outline: 'none',
-              }}
-            >
-              {runs.map((r) => (
-                <option key={r.run_id} value={r.run_id}>
-                  {r.initialization_time.split('T')[0]} · {r.source.split('-')[0]} 00 UTC ({r.evaluation_set.toUpperCase()})
-                </option>
-              ))}
-            </select>
-            <span
-              style={{
-                position: 'absolute',
-                right: '8px',
-                pointerEvents: 'none',
-                fontSize: '0.65rem',
-                color: 'var(--text-muted)',
-              }}
-            >
-              ▼
-            </span>
-          </div>
+        {/* Replay season + forecast date selector */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+          <span style={labelStyle}>Season:</span>
+          <select
+            id="season-select"
+            value={currentRun?.season ?? ''}
+            onChange={(e) => selectSeason(Number(e.target.value))}
+            style={fieldStyle}
+          >
+            {seasons.map((season) => (
+              <option key={season} value={season}>
+                {season}
+              </option>
+            ))}
+          </select>
+
+          <span style={{ ...labelStyle, marginLeft: '0.35rem' }}>Forecast date:</span>
+          <button type="button" className="segmented-btn" onClick={() => step(-1)} disabled={runIndex <= 0} aria-label="Previous day">
+            ‹
+          </button>
+          <input
+            id="run-date"
+            type="date"
+            value={currentDate}
+            min={seasonRuns[0] ? dateOf(seasonRuns[0]) : undefined}
+            max={seasonRuns.length ? dateOf(seasonRuns[seasonRuns.length - 1]) : undefined}
+            onChange={(e) => selectDate(e.target.value)}
+            style={{ ...fieldStyle, colorScheme: 'dark light' }}
+          />
+          <button
+            type="button"
+            className="segmented-btn"
+            onClick={() => step(1)}
+            disabled={runIndex < 0 || runIndex >= seasonRuns.length - 1}
+            aria-label="Next day"
+          >
+            ›
+          </button>
+          {currentRun?.evaluation_set && <EvaluationBadge evaluationSet={currentRun.evaluation_set} />}
         </div>
 
         {/* Lead Day Segmented Control */}
@@ -93,6 +149,11 @@ export default function ForecastControls({
               </button>
             ))}
           </div>
+          {validDate && (
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+              valid for <strong style={{ color: 'var(--text-primary)' }}>{validDate}</strong>
+            </span>
+          )}
         </div>
 
         {/* F6 Hotspots Toggle Button */}

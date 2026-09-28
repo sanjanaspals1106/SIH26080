@@ -30,6 +30,9 @@ export interface DistrictForecastSummary {
   attention_level: AttentionLevel
   priority_rank: number
   flags: QualityFlags
+  centroid_lat?: number | null
+  centroid_lon?: number | null
+  n_effective_cells?: number | null
 }
 
 export interface DistrictForecastsResponse extends ApiResponseMeta {
@@ -57,6 +60,8 @@ export interface GeoJsonFeatureCollection {
       name: string
       state: string
       source_year?: number
+      is_small?: boolean | null
+      n_effective_cells?: number | null
       [key: string]: unknown
     }
     geometry: {

@@ -26,6 +26,11 @@ export default function IndicatorsGrid({ indicators }: IndicatorsGridProps) {
         </div>
       </div>
 
+      {indicators.length === 0 ? (
+        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+          Not available: the underlying atmospheric indicator values are not currently served by the API.
+        </div>
+      ) : (
       <div
         style={{
           display: 'grid',
@@ -100,6 +105,7 @@ export default function IndicatorsGrid({ indicators }: IndicatorsGridProps) {
           )
         })}
       </div>
+      )}
     </div>
   )
 }

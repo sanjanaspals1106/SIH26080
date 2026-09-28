@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
+from dataclasses import replace
 from sqlalchemy import func, insert, select, text, update
 from sqlalchemy.exc import IntegrityError
 
@@ -100,6 +101,7 @@ def test_load_writes_every_m1_table(loaded, m1_outputs):
     assert report.rows == {
         "grid_cells": 129 * 135, "districts": 4, "cell_district_weights": len(weights), "nwp_runs": 2,
         "district_forecasts": len(fc), "district_history": len(read_district_history(cfg)),
+        "district_forecasts_corrected": 0,  # the synthetic M1 output has no M3-corrected values to add
     }  # fmt: skip
     for table, n in (
         (t.grid_cells, 129 * 135),
@@ -310,7 +312,9 @@ def test_missing_inputs_fail_clearly(empty_db, m1_outputs, tmp_path):
     with pytest.raises(MissingInputError, match="Valid-cell mask not found"):
         load_all(engine, bare, districts=m1_outputs.districts)
     with pytest.raises(MissingInputError, match="No district file is configured"):  # nothing is substituted
-        load_district_rows(engine, m1_outputs.cfg)
+        load_district_rows(
+            engine, replace(m1_outputs.cfg, districts=replace(m1_outputs.cfg.districts, file=None))
+        )  # config/districts.yaml now names the real file; this case needs it unset
 
 
 def test_missing_schema_is_reported_with_the_fix(tmp_path):

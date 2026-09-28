@@ -1,5 +1,6 @@
 """Integration: synthetic Golden Dataset -> features -> district weights -> district products -> district_history."""
 
+import dataclasses
 import geopandas as gpd
 import numpy as np
 import pandas as pd
@@ -213,7 +214,8 @@ def test_missing_inputs_fail_clearly(stage3, tmp_path):
     with pytest.raises(
         MissingInputError, match="No district file is configured"
     ):  # no silent substitute boundaries
-        build_stage3_season(2024, [2019], empty, static=make_tigge_static(), grid=grid)
+        no_file = dataclasses.replace(empty, districts=dataclasses.replace(empty.districts, file=None))
+        build_stage3_season(2024, [2019], no_file, static=make_tigge_static(), grid=grid)
     assert (
         not (empty.features.dir / "climatology").exists() and not (empty.features.dir / "static").exists()
     )  # failed before any work
